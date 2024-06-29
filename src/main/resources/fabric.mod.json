@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "id": "${modId}",
+  "version": "${modVersion}",
+  "name": "${modName}",
+  "description": "${modDescription}",
+  "authors": [
+    "Syorito Hatsuki"
+  ],
+  "contact": {
+    "homepage": "https://syorito-hatsuki.dev/",
+    "issues": "https://github.com/syorito-hatsuki/${modId}/issues",
+    "sources": "https://github.com/syorito-hatsuki/${modId}"
+  },
+  "license": "MIT Licence",
+  "icon": "assets/${modId}/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      {
+        "adapter": "kotlin",
+        "value": "dev.syoritohatsuki.${modId}.TemplateMod"
+      }
+    ]
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.discord": "https://discord.gg/pbwnMwnUD6"
+      },
+      "badges": [],
+      "update_checker": true
+    },
+    "mcb": [
+      {
+        "name": "Ducky House",
+        "fillColor": -13730510,
+        "outlineColor": -11751600
+      }
+    ]
+  },
+  "mixins": [
+    "${modId}.mixins.json"
+  ],
+  "depends": {
+    "fabric": "*",
+    "fabricloader": ">=${loaderVersion}",
+    "fabric-language-kotlin": ">=${fabricKotlinVersion}",
+    "minecraft": ">=${minecraftVersion}",
+    "java": ">=${javaVersion}"
+  },
+  "recommends": {
+    "modmenu-badges-lib": "*"
+  }
+}
