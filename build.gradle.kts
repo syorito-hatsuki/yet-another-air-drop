@@ -1,6 +1,6 @@
-val fabricKotlinVersion: String by project
-val javaVersion = JavaVersion.VERSION_17
-val loaderVersion: String by project
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+val javaVersion = JavaVersion.VERSION_21
 val minecraftVersion: String by project
 val modVersion: String by project
 val mavenGroup: String by project
@@ -30,12 +30,13 @@ dependencies {
     val yarnMappings: String by project
     mappings("net.fabricmc", "yarn", yarnMappings, null, "v2")
 
+    val loaderVersion: String by project
     modImplementation("net.fabricmc", "fabric-loader", loaderVersion)
 
     val fabricVersion: String by project
     modImplementation("net.fabricmc.fabric-api", "fabric-api", fabricVersion)
 
-
+    val fabricKotlinVersion: String by project
     modImplementation("net.fabricmc", "fabric-language-kotlin", fabricKotlinVersion)
 
     val modMenuBadgesLibVersion: String by project
@@ -54,8 +55,8 @@ tasks {
     }
 
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions {
-            jvmTarget = javaVersion.toString()
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_21)
         }
     }
 
@@ -74,14 +75,11 @@ tasks {
                     "modName" to modName,
                     "modVersion" to modVersion,
                     "modDescription" to modDescription,
-                    "loaderVersion" to loaderVersion,
                     "minecraftVersion" to minecraftVersion,
-                    "fabricKotlinVersion" to fabricKotlinVersion,
-                    "javaVersion" to javaVersion.toString()
                 )
             )
         }
-        filesMatching("template.mixins.json") {
+        filesMatching("yetanotherairdrop.mixins.json") {
             expand(mutableMapOf("modId" to modId))
         }
     }

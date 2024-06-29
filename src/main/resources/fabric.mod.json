@@ -13,13 +13,19 @@
     "sources": "https://github.com/syorito-hatsuki/${modId}"
   },
   "license": "MIT Licence",
-  "icon": "assets/${modId}/icon.png",
+  "icon": "assets/yetanotherairdrop/icon.png",
   "environment": "*",
   "entrypoints": {
     "main": [
       {
         "adapter": "kotlin",
-        "value": "dev.syoritohatsuki.${modId}.TemplateMod"
+        "value": "dev.syoritohatsuki.yetanotherairdrop.YetAnotherAirDrop"
+      }
+    ],
+    "client": [
+      {
+        "adapter": "kotlin",
+        "value": "dev.syoritohatsuki.yetanotherairdrop.client.YetAnotherAirDropClient"
       }
     ]
   },
@@ -40,14 +46,14 @@
     ]
   },
   "mixins": [
-    "${modId}.mixins.json"
+    "yetanotherairdrop.mixins.json"
   ],
   "depends": {
     "fabric": "*",
-    "fabricloader": ">=${loaderVersion}",
-    "fabric-language-kotlin": ">=${fabricKotlinVersion}",
+    "fabricloader": "*",
+    "fabric-language-kotlin": "*",
     "minecraft": ">=${minecraftVersion}",
-    "java": ">=${javaVersion}"
+    "java": "*"
   },
   "recommends": {
     "modmenu-badges-lib": "*"

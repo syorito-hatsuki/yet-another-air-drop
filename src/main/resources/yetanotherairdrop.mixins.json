@@ -1,0 +1,9 @@
+{
+  "required": true,
+  "package": "dev.syoritohatsuki.yetanotherairdrop.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": []
+}
