@@ -1,6 +1,9 @@
 package dev.syoritohatsuki.yetanotherairdrop.entity.projectile
 
 import dev.syoritohatsuki.yetanotherairdrop.entity.EntityTypeRegistry
+import net.minecraft.block.Block
+import net.minecraft.block.BlockState
+import net.minecraft.block.Blocks
 import net.minecraft.entity.Entity
 import net.minecraft.entity.EntityType
 import net.minecraft.entity.MovementType
@@ -11,13 +14,30 @@ import net.minecraft.world.World
 class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type, world) {
 
     constructor(world: World, x: Double, y: Double, z: Double) : this(EntityTypeRegistry.AIR_DROP, world) {
-        this.setPosition(x, y, z)
-        this.yaw = (random.nextDouble() * 360.0).toFloat()
-        this.setVelocity(
+        setPosition(x, y, z)
+        yaw = (random.nextDouble() * 360.0).toFloat()
+        setVelocity(
             (random.nextDouble() * 0.2f - 0.1f) * 2.0,
             random.nextDouble() * 0.2 * 2.0,
             (random.nextDouble() * 0.2f - 0.1f) * 2.0
         )
+    }
+
+    override fun onBlockCollision(state: BlockState) {
+        super.onBlockCollision(state)
+        if (state.isAir) {
+            world.setBlockState(blockPos, Blocks.CHEST.defaultState, Block.NOTIFY_ALL_AND_REDRAW)
+            return
+        }
+
+        val newPos = blockPos.up()
+        val newState = world.getBlockState(newPos)
+
+        if (newState.isAir) {
+            world.setBlockState(newPos, Blocks.CHEST.defaultState, Block.NOTIFY_ALL_AND_REDRAW)
+            return
+        }
+        onBlockCollision(newState)
     }
 
     override fun tick() {

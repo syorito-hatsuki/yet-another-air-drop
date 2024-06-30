@@ -23,8 +23,9 @@ object YetAnotherAirDrop : ModInitializer {
             dispatcher.register(
                 literal<ServerCommandSource>("air-drop").then(
                     literal<ServerCommandSource>("spawn").executes {
-                        val cord = it.source.player?.pos!!
-                        it.source.player?.serverWorld?.spawnEntity(AirDropEntity(it.source.world, cord.x, cord.y, cord.z))
+                        it.source.player?.pos?.apply {
+                            it.source.player?.serverWorld?.spawnEntity(AirDropEntity(it.source.world, x, y, z))
+                        }
                         1
                     }
                 )

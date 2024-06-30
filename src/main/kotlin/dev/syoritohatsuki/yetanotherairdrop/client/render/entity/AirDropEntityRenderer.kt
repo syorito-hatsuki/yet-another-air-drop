@@ -23,11 +23,11 @@ class AirDropEntityRenderer(context: EntityRendererFactory.Context) : EntityRend
     }
 
     init {
-        this.shadowRadius = 0.15f
-        this.shadowOpacity = 0.75f
+        shadowRadius = 0.15f
+        shadowOpacity = 0.75f
     }
 
-    override fun getBlockLight(airDropEntity: AirDropEntity, blockPos: BlockPos?): Int =
+    override fun getBlockLight(airDropEntity: AirDropEntity, blockPos: BlockPos): Int =
         MathHelper.clamp(super.getBlockLight(airDropEntity, blockPos) + 7, 0, 15)
 
     override fun render(
@@ -73,8 +73,12 @@ class AirDropEntityRenderer(context: EntityRendererFactory.Context) : EntityRend
         v: Float,
         light: Int
     ) {
-        vertexConsumer.vertex(matrix, x, y, 0.0f).color(red, green, blue, 128).texture(u, v)
-            .overlay(OverlayTexture.DEFAULT_UV).light(light).normal(matrix, 0.0f, 1.0f, 0.0f)
+        vertexConsumer.vertex(matrix, x, y, 0.0f)
+            .color(red, green, blue, 128)
+            .texture(u, v)
+            .overlay(OverlayTexture.DEFAULT_UV)
+            .light(light)
+            .normal(matrix, 0.0f, 1.0f, 0.0f)
     }
 
     override fun getTexture(airDropEntity: AirDropEntity): Identifier = TEXTURE

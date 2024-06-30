@@ -12,7 +12,7 @@ import net.minecraft.util.Identifier
 
 object EntityTypeRegistry {
     val AIR_DROP = register("air_drop", EntityType.Builder.create(::AirDropEntity, SpawnGroup.MISC)
-        .dimensions(1f, 1f)
+        .dimensions(1.1f, 1.1f)
         .maxTrackingRange(32)
         .trackingTickInterval(2))
 
