@@ -1,5 +1,6 @@
 package dev.syoritohatsuki.yetanotherairdrop.entity.projectile
 
+import dev.syoritohatsuki.yetanotherairdrop.YetAnotherAirDrop
 import dev.syoritohatsuki.yetanotherairdrop.entity.EntityTypeRegistry
 import net.minecraft.block.Block
 import net.minecraft.block.BlockState
@@ -24,20 +25,26 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
     }
 
     override fun onBlockCollision(state: BlockState) {
+        if (!isOnGround) return
+
         super.onBlockCollision(state)
-        if (state.isAir) {
+
+        if (state.isReplaceable) {
+            YetAnotherAirDrop.logger.info("1")
             world.setBlockState(blockPos, Blocks.CHEST.defaultState, Block.NOTIFY_ALL_AND_REDRAW)
+            discard()
             return
         }
 
         val newPos = blockPos.up()
         val newState = world.getBlockState(newPos)
 
-        if (newState.isAir) {
+        if (newState.isReplaceable) {
+            YetAnotherAirDrop.logger.info("2")
             world.setBlockState(newPos, Blocks.CHEST.defaultState, Block.NOTIFY_ALL_AND_REDRAW)
+            discard()
             return
         }
-        onBlockCollision(newState)
     }
 
     override fun tick() {
@@ -59,7 +66,7 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
         }
     }
 
-    override fun getGravity(): Double = 0.0005
+    override fun getGravity(): Double = 0.005
 
     override fun initDataTracker(builder: DataTracker.Builder) {
     }
