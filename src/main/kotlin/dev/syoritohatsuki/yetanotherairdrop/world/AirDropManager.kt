@@ -17,7 +17,7 @@ class AirDropManager(properties: ServerWorldProperties) : SpecialSpawner {
 
     companion object {
         private val random: Random = Random.create()
-        const val DEFAULT_SPAWN_TIMER: Int = 200
+        const val DEFAULT_SPAWN_TIMER: Int = 600
         const val DEFAULT_SPAWN_DELAY: Int = 24000
         const val MIN_SPAWN_CHANCE: Int = 25
         const val MAX_SPAWN_CHANCE: Int = 75
@@ -29,10 +29,7 @@ class AirDropManager(properties: ServerWorldProperties) : SpecialSpawner {
     private var spawnChance = 0
 
     init {
-        spawnTimer = 1200
-        spawnDelay = properties.wanderingTraderSpawnDelay
-        spawnChance = properties.wanderingTraderSpawnChance
-
+        spawnTimer = DEFAULT_SPAWN_TIMER
         if (spawnChance == 0) {
             spawnChance = DEFAULT_SPAWN_CHANCE
             properties.wanderingTraderSpawnChance = spawnChance
