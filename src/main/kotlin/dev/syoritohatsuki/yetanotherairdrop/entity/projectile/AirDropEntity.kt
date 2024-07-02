@@ -1,15 +1,19 @@
 package dev.syoritohatsuki.yetanotherairdrop.entity.projectile
 
-import dev.syoritohatsuki.yetanotherairdrop.YetAnotherAirDrop
 import dev.syoritohatsuki.yetanotherairdrop.entity.EntityTypeRegistry
 import net.minecraft.block.Block
 import net.minecraft.block.BlockState
 import net.minecraft.block.Blocks
+import net.minecraft.block.entity.ChestBlockEntity
 import net.minecraft.entity.Entity
 import net.minecraft.entity.EntityType
 import net.minecraft.entity.MovementType
 import net.minecraft.entity.data.DataTracker
+import net.minecraft.loot.LootTables
 import net.minecraft.nbt.NbtCompound
+import net.minecraft.text.Text
+import net.minecraft.util.Formatting
+import net.minecraft.util.math.BlockPos
 import net.minecraft.world.World
 
 class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type, world) {
@@ -25,26 +29,39 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
     }
 
     override fun onBlockCollision(state: BlockState) {
-        if (!isOnGround) return
-
         super.onBlockCollision(state)
 
-        if (state.isReplaceable) {
-            YetAnotherAirDrop.logger.info("1")
-            world.setBlockState(blockPos, Blocks.CHEST.defaultState, Block.NOTIFY_ALL_AND_REDRAW)
-            discard()
-            return
-        }
+        if (!isOnGround) return
+        if (trySetChest(state, blockPos)) return
 
         val newPos = blockPos.up()
-        val newState = world.getBlockState(newPos)
+        if (trySetChest(world.getBlockState(newPos), newPos)) return
+    }
 
-        if (newState.isReplaceable) {
-            YetAnotherAirDrop.logger.info("2")
-            world.setBlockState(newPos, Blocks.CHEST.defaultState, Block.NOTIFY_ALL_AND_REDRAW)
-            discard()
-            return
+    private fun trySetChest(state: BlockState, blockPos: BlockPos): Boolean {
+        if (!state.isReplaceable) return false
+
+        if (world.setBlockState(blockPos, Blocks.CHEST.defaultState, Block.NOTIFY_ALL_AND_REDRAW)) {
+            (world.getBlockEntity(blockPos) as ChestBlockEntity).lootTable = LootTables.RED_SHEEP_ENTITY
         }
+
+        discard()
+
+        server?.playerManager?.playerList?.forEach { entity ->
+            entity.sendMessageToClient(Text.literal("Air Drop landed on [")
+                .append(Text.literal("X: ${blockPos.x}").styled {
+                    it.withBold(true).withColor(Formatting.RED)
+                }).append(Text.literal(" | ")).append(Text.literal("Y: ${blockPos.y}").styled {
+                    it.withBold(true).withColor(Formatting.GREEN)
+                }).append(Text.literal(" | ")).append(Text.literal("Z: ${blockPos.z}").styled {
+                    it.withBold(true).withColor(Formatting.BLUE)
+                }).append(Text.literal("] in ")).append(
+                    Text.translatable(world.dimensionEntry.key.get().value.path.replaceFirstChar { it.titlecase() })
+                        .styled { it.withBold(true).withColor(Formatting.YELLOW) }), false
+            )
+        }
+
+        return true
     }
 
     override fun tick() {
