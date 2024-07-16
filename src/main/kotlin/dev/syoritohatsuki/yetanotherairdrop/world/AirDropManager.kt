@@ -1,103 +1,113 @@
 package dev.syoritohatsuki.yetanotherairdrop.world
 
-import dev.syoritohatsuki.yetanotherairdrop.entity.EntityTypeRegistry
-import net.minecraft.entity.SpawnReason
-import net.minecraft.server.network.ServerPlayerEntity
+import dev.syoritohatsuki.yetanotherairdrop.DatapackLoader
+import dev.syoritohatsuki.yetanotherairdrop.YetAnotherAirDrop
+import dev.syoritohatsuki.yetanotherairdrop.entity.projectile.AirDropEntity
 import net.minecraft.server.world.ServerWorld
 import net.minecraft.util.math.BlockPos
-import net.minecraft.util.math.MathHelper
 import net.minecraft.util.math.random.Random
-import net.minecraft.world.GameRules
+import net.minecraft.world.BlockView
 import net.minecraft.world.Heightmap
 import net.minecraft.world.WorldView
-import net.minecraft.world.level.ServerWorldProperties
 import net.minecraft.world.spawner.SpecialSpawner
 
-class AirDropManager(properties: ServerWorldProperties) : SpecialSpawner {
+class AirDropManager : SpecialSpawner {
 
     companion object {
-        private val random: Random = Random.create()
         const val DEFAULT_SPAWN_TIMER: Int = 600
-        const val DEFAULT_SPAWN_DELAY: Int = 24000
-        const val MIN_SPAWN_CHANCE: Int = 25
-        const val MAX_SPAWN_CHANCE: Int = 75
-        const val DEFAULT_SPAWN_CHANCE: Int = 25
+
+        private val random: Random = Random.create()
+
+        private var instanceCount = 0
     }
 
     private var spawnTimer = 0
-    private var spawnDelay = 0
-    private var spawnChance = 0
 
     init {
+        YetAnotherAirDrop.logger.warn("Instance count: ${++instanceCount}. It should be 1, but may can bigger :D")
         spawnTimer = DEFAULT_SPAWN_TIMER
-        if (spawnChance == 0) {
-            spawnChance = DEFAULT_SPAWN_CHANCE
-            properties.wanderingTraderSpawnChance = spawnChance
-        }
-        if (spawnDelay == 0) {
-            spawnDelay = DEFAULT_SPAWN_DELAY
-            properties.wanderingTraderSpawnDelay = spawnDelay
-        }
     }
 
     override fun spawn(world: ServerWorld, spawnMonsters: Boolean, spawnAnimals: Boolean): Int {
-        when {
-            --spawnTimer > 0 -> return 0
-            else -> {
-                spawnTimer = DEFAULT_SPAWN_TIMER
-                spawnDelay -= DEFAULT_SPAWN_TIMER
-                spawnDelay = DEFAULT_SPAWN_DELAY
-                return when {
-                    !world.gameRules.getBoolean(GameRules.DO_MOB_SPAWNING) -> 0
-                    else -> {
-                        spawnChance =
-                            MathHelper.clamp(spawnChance + DEFAULT_SPAWN_CHANCE, MIN_SPAWN_CHANCE, MAX_SPAWN_CHANCE)
-                        return when {
-                            trySpawn(world) -> {
-                                spawnChance = 25
-                                1
-                            }
-
-                            else -> 0
-                        }
-                    }
-                }
-            }
-        }
+        if (--spawnTimer > 0) return 0
+        spawnTimer = DEFAULT_SPAWN_TIMER
+        return trySpawn(world)
     }
 
-    private fun trySpawn(world: ServerWorld): Boolean {
-        val playerEntity: ServerPlayerEntity = world.randomAlivePlayer ?: return true
-        val blockPos3: BlockPos? = getNearbySpawnPos(world, playerEntity.blockPos, 48)
-
-        if (blockPos3 != null && this.doesNotSuffocateAt(world, blockPos3)) {
-            EntityTypeRegistry.AIR_DROP.spawn(world, blockPos3.up(50), SpawnReason.EVENT) ?: return false
+    private fun trySpawn(world: ServerWorld): Int {
+        val listOfPlayer = world.server.worlds.filter {
+            DatapackLoader.worldsWhereDropExist().contains(it.registryKey.value.toString())
+        }.mapNotNull {
+            it.randomAlivePlayer
         }
 
-        return false
+        if (listOfPlayer.isEmpty()) return 0
+
+        YetAnotherAirDrop.logger.warn("----[ Entities: ${listOfPlayer.size}]----")
+        val playerEntity = listOfPlayer.onEach {
+            YetAnotherAirDrop.logger.warn(it.name?.literalString)
+        }.random()
+        YetAnotherAirDrop.logger.warn("--------------------")
+
+        val playerWorld = playerEntity.world
+        val blockPos3: BlockPos? = getNearbySpawnPos(playerWorld, playerEntity.blockPos, 48)
+
+        YetAnotherAirDrop.logger.warn("Try to spawn Air Drop in: ${playerWorld.registryKey.value} at ${blockPos3?.toShortString()}")
+
+        if (blockPos3 != null && this.doesNotSuffocateAt(playerEntity.world, blockPos3)) {
+            YetAnotherAirDrop.logger.warn("Air Drop spawn: Success")
+            val height = random.nextBetween(10, 100)
+            val upBlockPos = blockPos3.up(height).toCenterPos()
+
+            if (!playerWorld.spawnEntity(
+                    AirDropEntity(playerWorld,
+                        upBlockPos.x,
+                        upBlockPos.y,
+                        upBlockPos.z,
+                        DatapackLoader.getRandomDrop(playerWorld.registryKey.value) ?: run {
+                            YetAnotherAirDrop.logger.warn("Drop is null o_O")
+                            return 0
+                        })
+                )
+            ) {
+                YetAnotherAirDrop.logger.warn("Can't spawn Entity")
+                return 0
+            }
+            return 1
+        }
+
+        YetAnotherAirDrop.logger.warn("Air Drop spawn: Unsuccessful")
+
+        return 0
     }
 
     private fun getNearbySpawnPos(world: WorldView, pos: BlockPos, range: Int): BlockPos? {
-        var blockPos: BlockPos? = null
-
         repeat(9) {
-            val j = pos.x + random.nextInt(range * 2) - range
-            val k = pos.z + random.nextInt(range * 2) - range
-            val l = world.getTopY(Heightmap.Type.WORLD_SURFACE, j, k)
-            val blockPos2 = BlockPos(j, l, k)
+            val randomX = pos.x + random.nextInt(range * 2) - range
+            val randomZ = pos.z + random.nextInt(range * 2) - range
+            val topY = world.getTopY(Heightmap.Type.WORLD_SURFACE, randomX, randomZ)
+
+            YetAnotherAirDrop.logger.warn("Checking ${randomX}, ${topY}, $randomZ")
+
+            val blockPos2 = BlockPos(randomX, topY, randomZ)
             if (world.isAir(blockPos2)) {
-                blockPos = blockPos2
-                return@repeat
+                YetAnotherAirDrop.logger.warn("Nearly spawn found on: ${blockPos2.toShortString()}")
+                return blockPos2
             }
         }
 
-        return blockPos
+        YetAnotherAirDrop.logger.warn("Can't spawn near: ${pos.toShortString()}")
+        return null
     }
 
-    private fun doesNotSuffocateAt(world: net.minecraft.world.BlockView, pos: BlockPos): Boolean {
+    private fun doesNotSuffocateAt(world: BlockView, pos: BlockPos): Boolean {
         BlockPos.iterate(pos, pos.add(1, 2, 1)).forEach { blockPos: BlockPos ->
-            if (!world.getBlockState(blockPos).getCollisionShape(world, blockPos).isEmpty) return false
+            if (!world.getBlockState(blockPos).getCollisionShape(world, blockPos).isEmpty) {
+                YetAnotherAirDrop.logger.warn("Not suffocate: ${blockPos.toShortString()}")
+                return false
+            }
         }
+        YetAnotherAirDrop.logger.warn("Suffocate: ${pos.toShortString()}")
         return true
     }
 }
