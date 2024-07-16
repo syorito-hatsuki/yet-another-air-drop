@@ -44,6 +44,8 @@ dependencies {
 
     val duckyUpdaterLibVersion: String by project
     include(modImplementation("maven.modrinth", "ducky-updater-lib", duckyUpdaterLibVersion))
+
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 }
 
 tasks {
