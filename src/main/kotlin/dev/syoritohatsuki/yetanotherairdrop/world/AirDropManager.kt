@@ -82,10 +82,16 @@ class AirDropManager : SpecialSpawner {
     }
 
     private fun getNearbySpawnPos(world: WorldView, pos: BlockPos, range: Int): BlockPos? {
+        val halfWorldY = (world.topY / 2)
         repeat(9) {
             val randomX = pos.x + random.nextInt(range * 2) - range
             val randomZ = pos.z + random.nextInt(range * 2) - range
-            val topY = world.getTopY(Heightmap.Type.WORLD_SURFACE, randomX, randomZ)
+            var topY = world.getTopY(Heightmap.Type.WORLD_SURFACE, randomX, randomZ)
+
+            YetAnotherAirDrop.logger.error("$topY >= $halfWorldY = ${topY >= halfWorldY}")
+            if (topY >= halfWorldY) topY = getSurfaceForDimensionWithRoof(world, randomX, halfWorldY, randomZ).apply {
+                YetAnotherAirDrop.logger.error("Non Roof Surface: $this")
+            }
 
             YetAnotherAirDrop.logger.warn("Checking ${randomX}, ${topY}, $randomZ")
 
@@ -98,6 +104,33 @@ class AirDropManager : SpecialSpawner {
 
         YetAnotherAirDrop.logger.warn("Can't spawn near: ${pos.toShortString()}")
         return null
+    }
+
+    private fun getSurfaceForDimensionWithRoof(world: WorldView, x: Int, halfWorldY: Int, z: Int): Int {
+        val pos = BlockPos.Mutable(x, halfWorldY, z)
+
+        var firstAir = halfWorldY - 1
+
+        for (y in firstAir downTo 0) {
+            pos.y = y
+            if (world.getBlockState(pos).isAir) {
+                YetAnotherAirDrop.logger.warn("Is air: ${world.getBlockState(pos)}")
+                firstAir = y
+                break
+            }
+        }
+
+        YetAnotherAirDrop.logger.warn("First Air: $firstAir")
+
+        for (y in firstAir downTo 0) {
+            pos.y = y
+            if (world.getBlockState(pos).isSolid) {
+                YetAnotherAirDrop.logger.warn("Is solid: ${world.getBlockState(pos)}")
+                return y
+            }
+        }
+
+        return -1
     }
 
     private fun doesNotSuffocateAt(world: BlockView, pos: BlockPos): Boolean {
