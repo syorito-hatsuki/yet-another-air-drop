@@ -1,0 +1,6 @@
+{
+  "name": "Rare Ore",
+  "lootTables": [
+    "minecraft:rare"
+  ]
+}

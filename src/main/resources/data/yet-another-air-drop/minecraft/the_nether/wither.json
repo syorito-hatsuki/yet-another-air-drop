@@ -1,0 +1,6 @@
+{
+  "name": "Wither",
+  "lootTables": [
+    "chests/nether_bridge"
+  ]
+}
