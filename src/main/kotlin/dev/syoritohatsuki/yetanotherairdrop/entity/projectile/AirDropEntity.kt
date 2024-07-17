@@ -24,6 +24,7 @@ import net.minecraft.text.Text
 import net.minecraft.util.Formatting
 import net.minecraft.util.Identifier
 import net.minecraft.util.math.BlockPos
+import net.minecraft.util.math.Direction
 import net.minecraft.world.World
 import net.minecraft.world.explosion.Explosion
 
@@ -51,7 +52,29 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
     override fun onBlockCollision(state: BlockState) {
         super.onBlockCollision(state)
 
+        if (drop == null) return
+
+        if (blockY == world.bottomY) {
+            if (!drop!!.safePlatform) {
+                discard()
+                return
+            }
+
+            for (offsetX in -1..1) {
+                for (offsetZ in -1..1) {
+                    world.setBlockState(
+                        BlockPos(x.toInt() + offsetX, y.toInt(), z.toInt() + offsetZ),
+                        Blocks.GLASS.defaultState,
+                        Block.NOTIFY_ALL_AND_REDRAW
+                    )
+                }
+            }
+
+            trySetBarrel(state, blockPos.up().offset(Direction.Axis.X, 1).offset(Direction.Axis.Z, 1))
+        }
+
         if (!isOnGround) return
+
         if (trySetBarrel(state, blockPos)) return
 
         val newPos = blockPos.up()
@@ -59,7 +82,7 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
     }
 
     private fun trySetBarrel(state: BlockState, blockPos: BlockPos): Boolean {
-        if (!state.isReplaceable || drop == null) return false
+        if (!state.isReplaceable)
 
         if (world.setBlockState(blockPos, Blocks.BARREL.defaultState, Block.NOTIFY_ALL_AND_REDRAW)) {
 
