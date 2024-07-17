@@ -57,8 +57,6 @@ object DatapackLoader {
         worlds[worldIdentifierString] = worlds.getOrPut(worldIdentifierString) { emptySet() } + drop
     }
 
-    fun isDropExistForWorld(worldIdentifier: Identifier): Boolean = worlds[worldIdentifier.toString()].isNullOrEmpty()
-
     fun worldsWhereDropExist(): Set<String> = worlds.keys
 
     fun getRandomDrop(worldIdentifier: Identifier) = worlds[worldIdentifier.toString()]?.random()
