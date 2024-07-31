@@ -1,12 +1,12 @@
 package dev.syoritohatsuki.yetanotherairdrop.world
 
 import dev.syoritohatsuki.yetanotherairdrop.DatapackLoader
-import dev.syoritohatsuki.yetanotherairdrop.YetAnotherAirDrop
+import dev.syoritohatsuki.yetanotherairdrop.YetAnotherAirDrop.logger
 import dev.syoritohatsuki.yetanotherairdrop.entity.projectile.AirDropEntity
+import net.minecraft.block.Blocks
 import net.minecraft.server.world.ServerWorld
 import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.random.Random
-import net.minecraft.world.BlockView
 import net.minecraft.world.Heightmap
 import net.minecraft.world.WorldView
 import net.minecraft.world.spawner.SpecialSpawner
@@ -16,7 +16,7 @@ class AirDropManager : SpecialSpawner {
     companion object {
         const val DEFAULT_SPAWN_TIMER: Int = 600
 
-        private val random: Random = Random.create()
+        val random: Random = Random.create()
 
         private var instanceCount = 0
     }
@@ -24,7 +24,7 @@ class AirDropManager : SpecialSpawner {
     private var spawnTimer = 0
 
     init {
-        YetAnotherAirDrop.logger.warn("Instance count: ${++instanceCount}. It should be 1, but may can bigger :D")
+        logger.debug("Instance count: ${++instanceCount}. It should be 1, but may can bigger :D")
         spawnTimer = DEFAULT_SPAWN_TIMER
     }
 
@@ -43,104 +43,77 @@ class AirDropManager : SpecialSpawner {
 
         if (listOfPlayer.isEmpty()) return 0
 
-        YetAnotherAirDrop.logger.warn("----[ Entities: ${listOfPlayer.size}]----")
+        logger.debug("----[ Entities: ${listOfPlayer.size}]----")
         val playerEntity = listOfPlayer.onEach {
-            YetAnotherAirDrop.logger.warn(it.name?.literalString)
+            logger.debug(it.name?.literalString)
         }.random()
-        YetAnotherAirDrop.logger.warn("--------------------")
+        logger.debug("--------------------")
 
         val playerWorld = playerEntity.world
-        val blockPos3: BlockPos? = getNearbySpawnPos(playerWorld, playerEntity.blockPos, 48)
+        val blockPos3: BlockPos = getNearbySpawnPos(playerWorld, playerEntity.blockPos, 48) ?: return 0
 
-        YetAnotherAirDrop.logger.warn("Try to spawn Air Drop in: ${playerWorld.registryKey.value} at ${blockPos3?.toShortString()}")
+        logger.debug("Try to spawn Air Drop in: ${playerWorld.registryKey.value} at ${blockPos3.toShortString()}")
 
-        if (blockPos3 != null && this.doesNotSuffocateAt(playerEntity.world, blockPos3)) {
-            YetAnotherAirDrop.logger.warn("Air Drop spawn: Success")
-            val height = random.nextBetween(10, 100)
-            val upBlockPos = blockPos3.up(height).toCenterPos()
-
-            if (!playerWorld.spawnEntity(
-                    AirDropEntity(playerWorld,
-                        upBlockPos.x,
-                        upBlockPos.y,
-                        upBlockPos.z,
-                        DatapackLoader.getRandomDrop(playerWorld.registryKey.value) ?: run {
-                            YetAnotherAirDrop.logger.warn("Drop is null o_O")
-                            return 0
-                        })
-                )
-            ) {
-                YetAnotherAirDrop.logger.warn("Can't spawn Entity")
-                return 0
-            }
-            return 1
+        if (!playerWorld.spawnEntity(AirDropEntity(playerWorld, blockPos3.x.toDouble(), blockPos3.y.toDouble(), blockPos3.z.toDouble()))) {
+            logger.debug("Can't spawn Entity")
+            return 0
         }
-
-        YetAnotherAirDrop.logger.warn("Air Drop spawn: Unsuccessful")
-
-        return 0
+        logger.debug("Air Drop spawn: Success")
+        return 1
     }
 
-    private fun getNearbySpawnPos(world: WorldView, pos: BlockPos, range: Int): BlockPos? {
-        val halfWorldY = (world.topY / 2)
-        repeat(9) {
-            val randomX = pos.x + random.nextInt(range * 2) - range
-            val randomZ = pos.z + random.nextInt(range * 2) - range
-            var topY = world.getTopY(Heightmap.Type.WORLD_SURFACE, randomX, randomZ)
-
-            YetAnotherAirDrop.logger.error("$topY >= $halfWorldY = ${topY >= halfWorldY}")
-            if (topY >= halfWorldY) topY = getSurfaceForDimensionWithRoof(world, randomX, halfWorldY, randomZ).apply {
-                YetAnotherAirDrop.logger.error("Non Roof Surface: $this")
-            }
-
-            YetAnotherAirDrop.logger.warn("Checking ${randomX}, ${topY}, $randomZ")
-
-            val blockPos2 = BlockPos(randomX, topY, randomZ)
-            if (world.isAir(blockPos2)) {
-                YetAnotherAirDrop.logger.warn("Nearly spawn found on: ${blockPos2.toShortString()}")
-                return blockPos2
+    private fun findFirstAir(start: Int, pos: BlockPos.Mutable, world: WorldView): BlockPos.Mutable? {
+        for (y in start downTo 0) {
+            pos.y = y
+            if (world.getBlockState(pos).isOf(Blocks.AIR)) {
+                logger.debug("Is air: ${world.getBlockState(pos)} | ${pos.x}, ${pos.y}, ${pos.z}")
+                return pos
             }
         }
+        return null
+    }
 
-        YetAnotherAirDrop.logger.warn("Can't spawn near: ${pos.toShortString()}")
+    private fun findFirstSolid(start: Int, pos: BlockPos.Mutable, world: WorldView): BlockPos.Mutable? {
+        for (y in start downTo 0) {
+            pos.y = y
+            if (world.getBlockState(pos).isSolidBlock(world, pos)) {
+                logger.debug("Is solid: ${world.getBlockState(pos)} | ${pos.x}, ${pos.y}, ${pos.z}")
+                return pos
+            }
+        }
         return null
     }
 
     private fun getSurfaceForDimensionWithRoof(world: WorldView, x: Int, halfWorldY: Int, z: Int): Int {
-        val pos = BlockPos.Mutable(x, halfWorldY, z)
-
-        var firstAir = halfWorldY - 1
-
-        for (y in firstAir downTo 0) {
-            pos.y = y
-            if (world.getBlockState(pos).isAir) {
-                YetAnotherAirDrop.logger.warn("Is air: ${world.getBlockState(pos)}")
-                firstAir = y
-                break
-            }
-        }
-
-        YetAnotherAirDrop.logger.warn("First Air: $firstAir")
-
-        for (y in firstAir downTo 0) {
-            pos.y = y
-            if (world.getBlockState(pos).isSolid) {
-                YetAnotherAirDrop.logger.warn("Is solid: ${world.getBlockState(pos)}")
-                return y
-            }
-        }
-
-        return -1
+        val solid = findFirstSolid(halfWorldY, BlockPos.Mutable(x, halfWorldY, z), world) ?: return -1
+        return findFirstAir(solid.y, solid, world)?.y ?: -1
     }
 
-    private fun doesNotSuffocateAt(world: BlockView, pos: BlockPos): Boolean {
-        BlockPos.iterate(pos, pos.add(1, 2, 1)).forEach { blockPos: BlockPos ->
-            if (!world.getBlockState(blockPos).getCollisionShape(world, blockPos).isEmpty) {
-                YetAnotherAirDrop.logger.warn("Not suffocate: ${blockPos.toShortString()}")
-                return false
+    private fun getNearbySpawnPos(world: WorldView, pos: BlockPos, range: Int): BlockPos? {
+        val halfWorldY = world.topY / 2
+
+        repeat(9) {
+            val randomX = pos.x + random.nextInt(range * 2) - range
+            val randomZ = pos.z + random.nextInt(range * 2) - range
+            var topY = world.getTopY(Heightmap.Type.WORLD_SURFACE, randomX, randomZ)
+            logger.debug("$topY >= $halfWorldY = ${topY >= halfWorldY}")
+
+            val surface = getSurfaceForDimensionWithRoof(world, randomX, halfWorldY, randomZ)
+            logger.debug("Surface: $surface")
+
+            if (topY >= halfWorldY) topY = surface
+            else topY += random.nextBetween(30, 50)
+            logger.debug("Checking ${randomX}, ${topY}, $randomZ")
+
+            val blockPos2 = BlockPos(randomX, topY, randomZ)
+
+            if (world.isAir(blockPos2)) {
+                logger.debug("Nearly spawn found on: ${blockPos2.toShortString()}")
+                return blockPos2
             }
         }
-        YetAnotherAirDrop.logger.warn("Suffocate: ${pos.toShortString()}")
-        return true
+
+        logger.debug("Can't spawn near: ${pos.toShortString()}")
+        return null
     }
 }

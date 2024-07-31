@@ -31,9 +31,9 @@ import net.minecraft.world.explosion.Explosion
 class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type, world) {
 
     private var drop: Drop? = null
+    private var tries: Byte = 0
 
-    constructor(world: World, x: Double, y: Double, z: Double, drop: Drop) : this(EntityTypeRegistry.AIR_DROP, world) {
-        this.drop = drop
+    constructor(world: World, x: Double, y: Double, z: Double) : this(EntityTypeRegistry.AIR_DROP, world) {
         setPosition(x, y, z)
         yaw = 0F
         setVelocity(
@@ -47,12 +47,11 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
 
     override fun isFireImmune(): Boolean = true
 
-    override fun isGlowing(): Boolean = true
-
     override fun onBlockCollision(state: BlockState) {
         super.onBlockCollision(state)
-
-        if (drop == null) return
+        if (world.isClient) return
+//
+        drop = drop ?: DatapackLoader.getRandomDrop(world.registryKey.value) ?: return
 
         if (blockY == world.bottomY) {
             if (!drop!!.safePlatform) {
@@ -60,60 +59,58 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
                 return
             }
 
-            for (offsetX in -1..1) {
-                for (offsetZ in -1..1) {
-                    world.setBlockState(
-                        BlockPos(x.toInt() + offsetX, y.toInt(), z.toInt() + offsetZ),
-                        Blocks.GLASS.defaultState,
-                        Block.NOTIFY_ALL_AND_REDRAW
-                    )
-                }
-            }
-
+            buildSafePlatform()
             trySetBarrel(state, blockPos.up().offset(Direction.Axis.X, 1).offset(Direction.Axis.Z, 1))
+            return
         }
 
-        if (!isOnGround) return
+        if (isOnGround) trySetBarrel(state, blockPos)
+    }
 
-        if (trySetBarrel(state, blockPos)) return
-
-        val newPos = blockPos.up()
-        if (trySetBarrel(world.getBlockState(newPos), newPos)) return
+    private fun buildSafePlatform() {
+        for (offsetX in -1..1) {
+            for (offsetZ in -1..1) {
+                world.setBlockState(
+                    BlockPos(x.toInt() + offsetX, y.toInt(), z.toInt() + offsetZ),
+                    Blocks.GLASS.defaultState,
+                    Block.NOTIFY_ALL_AND_REDRAW
+                )
+            }
+        }
     }
 
     private fun trySetBarrel(state: BlockState, blockPos: BlockPos): Boolean {
-        if (!state.isReplaceable)
+        if (tries >= 3) {
+            logger.error("Almost impossible, but can't set barrel on ground after 3 try :(")
+            return false
+        }
+
+        if (!state.isReplaceable) {
+            tries++
+            return trySetBarrel(state, blockPos.up(1))
+        }
 
         if (world.setBlockState(blockPos, Blocks.BARREL.defaultState, Block.NOTIFY_ALL_AND_REDRAW)) {
 
             val randomTable = DatapackLoader.getRandomLootTable(drop!!)
-            logger.info("Random table: $randomTable")
 
             val blockEntity = world.getBlockEntity(blockPos) as BarrelBlockEntity
 
-            val verifiedLootTable = server?.reloadableRegistries?.getIds(RegistryKeys.LOOT_TABLE)?.firstOrNull {
+            server?.reloadableRegistries?.getIds(RegistryKeys.LOOT_TABLE)?.firstOrNull {
                 it.toString() == randomTable
-            }
-
-            if (verifiedLootTable != null) {
-                blockEntity.lootTable = RegistryKey.of(RegistryKeys.LOOT_TABLE, verifiedLootTable)
-            } else {
-                blockEntity.setStack(13, ItemStack(Items.PAPER).apply {
-                    set(
-                        DataComponentTypes.CUSTOM_NAME,
-                        Text.literal("ERROR! Loot table $randomTable not exist").styled {
-                            it.withBold(true).withColor(Formatting.RED)
-                        })
+            }?.let {
+                blockEntity.lootTable = RegistryKey.of(RegistryKeys.LOOT_TABLE, it)
+            } ?: blockEntity.setStack(13, ItemStack(Items.PAPER).apply {
+                set(DataComponentTypes.CUSTOM_NAME, Text.literal("ERROR! Loot table $randomTable not exist").styled {
+                    it.withBold(true).withColor(Formatting.RED)
                 })
-            }
-
+            })
         }
 
         discard()
 
         drop?.sound?.let {
             if (it.isBlank()) return@let
-            logger.warn("Play: $it")
             try {
                 world.playSound(
                     this, blockPos, Registries.SOUND_EVENT.get(Identifier.of(it)), SoundCategory.BLOCKS, 1F, 1F
@@ -125,7 +122,6 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
 
         drop?.message?.let {
             if (it.isBlank()) return@let
-            logger.warn("Message: $it")
             server?.playerManager?.playerList?.forEach { entity ->
                 entity.sendMessageToClient(Text.of(it), false)
             }
@@ -137,23 +133,38 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
     override fun tick() {
         super.tick()
         applyGravity()
-
         move(MovementType.SELF, velocity)
-        var force = 0.98f
-        if (isOnGround) force = world.getBlockState(velocityAffectingPos).block.slipperiness * 0.98f
 
-        velocity = velocity.multiply(force.toDouble(), 0.98, force.toDouble())
-        if (isOnGround) velocity = velocity.multiply(1.0, -0.9, 1.0)
+        velocity = velocity.multiply(0.98, 0.98, 0.98)
     }
 
-    override fun getGravity(): Double = 0.005
+    override fun getGravity(): Double = 0.0025
 
     override fun initDataTracker(builder: DataTracker.Builder) {
     }
 
     override fun readCustomDataFromNbt(nbt: NbtCompound) {
+        val dropNbt = nbt.getString("drop")
+        drop = if (dropNbt.isNullOrBlank()) {
+            DatapackLoader.getRandomDrop(world.registryKey.value) ?: run {
+                discard()
+                return
+            }
+        } else {
+            Drop.fromString(dropNbt)
+        }
+
+        logger.error("=====[ Read NBT ]=====")
+        logger.error(dropNbt)
+        logger.error(drop.toString())
+        logger.error("======================")
     }
 
     override fun writeCustomDataToNbt(nbt: NbtCompound) {
+        logger.error("=====[ Write NBT ]=====")
+        logger.error(drop.toString())
+        logger.error("=======================")
+
+        if (drop != null) nbt.putString("drop", drop?.toStringJson())
     }
 }

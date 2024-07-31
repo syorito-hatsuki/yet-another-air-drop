@@ -8,7 +8,6 @@ import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.minecraft.server.command.ServerCommandSource
-import net.minecraft.text.Text
 import org.slf4j.Logger
 
 object YetAnotherAirDrop : ModInitializer {
@@ -29,11 +28,7 @@ object YetAnotherAirDrop : ModInitializer {
         CommandRegistrationCallback.EVENT.register { dispatcher, _, _ ->
             dispatcher.register(literal<ServerCommandSource>(MOD_ID).then(literal<ServerCommandSource>("spawn").executes {
                 it.source.player?.pos?.apply {
-                    val drop = DatapackLoader.getRandomDrop(it.source.world.registryKey.value) ?: run {
-                        it.source.sendFeedback({ Text.literal("Can't get drop for your world") }, false)
-                        return@executes 0
-                    }
-                    it.source.player?.serverWorld?.spawnEntity(AirDropEntity(it.source.world, x, y, z, drop))
+                    it.source.player?.serverWorld?.spawnEntity(AirDropEntity(it.source.world, x, y, z))
                 }
                 1
             }))

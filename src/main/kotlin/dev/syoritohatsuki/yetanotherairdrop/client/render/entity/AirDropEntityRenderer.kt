@@ -11,10 +11,10 @@ import net.minecraft.client.render.VertexConsumerProvider
 import net.minecraft.client.render.block.BlockRenderManager
 import net.minecraft.client.render.entity.EntityRenderer
 import net.minecraft.client.render.entity.EntityRendererFactory
+import net.minecraft.client.texture.SpriteAtlasTexture
 import net.minecraft.client.util.math.MatrixStack
 import net.minecraft.util.Identifier
 import net.minecraft.util.math.BlockPos
-import net.minecraft.util.math.MathHelper
 import net.minecraft.util.math.random.Random
 
 @Environment(EnvType.CLIENT)
@@ -22,18 +22,10 @@ class AirDropEntityRenderer(context: EntityRendererFactory.Context) : EntityRend
 
     private var blockRenderManager: BlockRenderManager
 
-    companion object {
-        val TEXTURE: Identifier = Identifier.ofVanilla("textures/entity/experience_orb.png")
-    }
-
     init {
-        shadowRadius = 0.15f
-        shadowOpacity = 0.75f
+        shadowRadius = 0.5f
         blockRenderManager = context.blockRenderManager
     }
-
-    override fun getBlockLight(airDropEntity: AirDropEntity, blockPos: BlockPos): Int =
-        MathHelper.clamp(super.getBlockLight(airDropEntity, blockPos) + 7, 0, 15)
 
     override fun render(
         fallingBlockEntity: AirDropEntity,
@@ -71,6 +63,6 @@ class AirDropEntityRenderer(context: EntityRendererFactory.Context) : EntityRend
         }
     }
 
-    override fun getTexture(airDropEntity: AirDropEntity): Identifier = TEXTURE
+    override fun getTexture(airDropEntity: AirDropEntity): Identifier = SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE
 }
 

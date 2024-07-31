@@ -24,16 +24,16 @@ object DatapackLoader {
 
     @OptIn(ExperimentalSerializationApi::class)
     fun register(server: MinecraftServer) {
-        logger.info("Register DatapackLoader")
+        logger.info("Registering Air Drop Datapacks")
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
             .registerReloadListener(object : SimpleSynchronousResourceReloadListener {
                 override fun reload(manager: ResourceManager) {
-                    logger.info("$MOD_ID datapack reloaded")
+                    logger.debug("$MOD_ID datapack reloaded")
                     worlds.clear()
                     server.worldRegistryKeys.forEach { world ->
-                        logger.warn("-----[ N: ${world.value.namespace} P: ${world.value.path} ]-----")
+                        logger.debug("-----[ N: ${world.value.namespace} P: ${world.value.path} ]-----")
                         manager.findResources("${world.value.namespace}/${world.value.path}") { identifier ->
-                            logger.warn("Path: $identifier")
+                            logger.debug("Path: {}", identifier)
                             try {
                                 manager.getResourceOrThrow(identifier).inputStream.use {
                                     refresh(world.value.toString(), json.decodeFromStream(it))
@@ -44,13 +44,12 @@ object DatapackLoader {
                                 false
                             }
                         }
-                        logger.warn("--------------------------------------")
+                        logger.debug("--------------------------------------")
                     }
                 }
 
                 override fun getFabricId(): Identifier = Identifier.of(MOD_ID, "air_drop")
             })
-
     }
 
     private fun refresh(worldIdentifierString: String, drop: Drop) {
