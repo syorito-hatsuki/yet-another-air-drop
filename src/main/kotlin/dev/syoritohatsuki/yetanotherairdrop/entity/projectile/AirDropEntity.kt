@@ -12,19 +12,30 @@ import net.minecraft.component.DataComponentTypes
 import net.minecraft.entity.Entity
 import net.minecraft.entity.EntityType
 import net.minecraft.entity.MovementType
+import net.minecraft.entity.damage.DamageSource
 import net.minecraft.entity.data.DataTracker
+import net.minecraft.entity.data.TrackedData
+import net.minecraft.entity.data.TrackedDataHandlerRegistry
+import net.minecraft.item.AutomaticItemPlacementContext
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
 import net.minecraft.nbt.NbtCompound
+import net.minecraft.network.listener.ClientPlayPacketListener
+import net.minecraft.network.packet.Packet
+import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket
+import net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket
 import net.minecraft.registry.Registries
 import net.minecraft.registry.RegistryKey
 import net.minecraft.registry.RegistryKeys
+import net.minecraft.server.network.EntityTrackerEntry
+import net.minecraft.server.world.ServerWorld
 import net.minecraft.sound.SoundCategory
 import net.minecraft.text.Text
 import net.minecraft.util.Formatting
 import net.minecraft.util.Identifier
 import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.Direction
+import net.minecraft.util.math.Vec3d
 import net.minecraft.world.World
 import net.minecraft.world.explosion.Explosion
 
@@ -32,6 +43,22 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
 
     private var drop: Drop? = null
     private var tries: Byte = 0
+
+    companion object {
+        val BLOCK_POS: TrackedData<BlockPos> = DataTracker.registerData(
+            AirDropEntity::class.java, TrackedDataHandlerRegistry.BLOCK_POS
+        )
+        val BLOCK: Block = Blocks.BARREL
+    }
+
+    init {
+        this.setPosition(x, y, z)
+        this.velocity = Vec3d.ZERO
+        this.prevX = x
+        this.prevY = y
+        this.prevZ = z
+        this.setFallingBlockPos(this.blockPos)
+    }
 
     constructor(world: World, x: Double, y: Double, z: Double) : this(EntityTypeRegistry.AIR_DROP, world) {
         setPosition(x, y, z)
@@ -43,28 +70,40 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
         )
     }
 
+    fun getFallingBlockPos(): BlockPos = dataTracker.get(BLOCK_POS)
+
+    private fun setFallingBlockPos(pos: BlockPos) {
+        dataTracker.set(BLOCK_POS, pos)
+    }
+
     override fun isImmuneToExplosion(explosion: Explosion): Boolean = true
 
     override fun isFireImmune(): Boolean = true
 
-    override fun onBlockCollision(state: BlockState) {
-        super.onBlockCollision(state)
-        if (world.isClient) return
-//
-        drop = drop ?: DatapackLoader.getRandomDrop(world.registryKey.value) ?: return
+    override fun damage(world: ServerWorld?, source: DamageSource?, amount: Float): Boolean {
+        if (!this.isAlwaysInvulnerableTo(source)) this.scheduleVelocityUpdate()
+        return false
+    }
 
-        if (blockY == world.bottomY) {
-            if (!drop!!.safePlatform) {
-                discard()
+    private fun onGrounded(state: BlockState) {
+
+        if (world.isClient) return
+
+        (world as? ServerWorld)?.let { serverWorld ->
+            drop = drop ?: DatapackLoader.getRandomDrop(serverWorld.registryKey.value) ?: return
+            if (blockY == serverWorld.bottomY) {
+                if (!drop!!.safePlatform) {
+                    discard()
+                    return
+                }
+
+                buildSafePlatform()
+                trySetBarrel(state, blockPos.up().offset(Direction.Axis.X, 1).offset(Direction.Axis.Z, 1))
                 return
             }
 
-            buildSafePlatform()
-            trySetBarrel(state, blockPos.up().offset(Direction.Axis.X, 1).offset(Direction.Axis.Z, 1))
-            return
+            if (isOnGround) trySetBarrel(state, blockPos)
         }
-
-        if (isOnGround) trySetBarrel(state, blockPos)
     }
 
     private fun buildSafePlatform() {
@@ -77,6 +116,29 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
                 )
             }
         }
+    }
+
+    override fun tick() {
+        super.tick()
+
+        applyGravity()
+        move(MovementType.SELF, velocity)
+
+        if (world is ServerWorld && isAlive) {
+            val blockState = world.getBlockState(blockPos)
+            if (!blockState.isOf(Blocks.MOVING_PISTON)) {
+                if (blockState.canReplace(
+                        AutomaticItemPlacementContext(
+                            this.world, blockPos, Direction.DOWN, ItemStack.EMPTY, Direction.UP
+                        )
+                    ) && BLOCK.defaultState.canPlaceAt(world, blockPos)
+                ) {
+                    onGrounded(blockState)
+                }
+            }
+        }
+
+        velocity = velocity.multiply(0.98)
     }
 
     private fun trySetBarrel(state: BlockState, blockPos: BlockPos): Boolean {
@@ -105,42 +167,40 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
                     it.withBold(true).withColor(Formatting.RED)
                 })
             })
+
+            (world as ServerWorld).run {
+                chunkManager.chunkLoadingManager.sendToOtherNearbyPlayers(
+                    this@AirDropEntity, BlockUpdateS2CPacket(blockPos, world.getBlockState(blockPos))
+                )
+                drop?.sound?.let {
+                    if (it.isBlank()) return@let
+                    try {
+                        world.playSound(
+                            this@AirDropEntity, blockPos, Registries.SOUND_EVENT.get(Identifier.of(it)), SoundCategory.BLOCKS, 1F, 1F
+                        )
+                    } catch (e: Exception) {
+                        logger.error(e.stackTraceToString())
+                    }
+                }
+
+                drop?.message?.let {
+                    if (it.isBlank()) return@let
+                    server.playerManager?.playerList?.forEach { entity ->
+                        entity.sendMessageToClient(Text.of(it), false)
+                    }
+                }
+            }
         }
 
         discard()
 
-        drop?.sound?.let {
-            if (it.isBlank()) return@let
-            try {
-                world.playSound(
-                    this, blockPos, Registries.SOUND_EVENT.get(Identifier.of(it)), SoundCategory.BLOCKS, 1F, 1F
-                )
-            } catch (e: Exception) {
-                logger.error(e.stackTraceToString())
-            }
-        }
-
-        drop?.message?.let {
-            if (it.isBlank()) return@let
-            server?.playerManager?.playerList?.forEach { entity ->
-                entity.sendMessageToClient(Text.of(it), false)
-            }
-        }
-
         return true
-    }
-
-    override fun tick() {
-        super.tick()
-        applyGravity()
-        move(MovementType.SELF, velocity)
-
-        velocity = velocity.multiply(0.98, 0.98, 0.98)
     }
 
     override fun getGravity(): Double = 0.0025
 
     override fun initDataTracker(builder: DataTracker.Builder) {
+        builder.add(BLOCK_POS, BlockPos.ORIGIN)
     }
 
     override fun readCustomDataFromNbt(nbt: NbtCompound) {
@@ -166,5 +226,15 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
         logger.error("=======================")
 
         if (drop != null) nbt.putString("drop", drop?.toStringJson())
+    }
+
+
+    override fun createSpawnPacket(entityTrackerEntry: EntityTrackerEntry?): Packet<ClientPlayPacketListener> =
+        EntitySpawnS2CPacket(this, entityTrackerEntry, Block.getRawIdFromState(Blocks.BARREL.defaultState))
+
+    override fun onSpawnPacket(packet: EntitySpawnS2CPacket) {
+        super.onSpawnPacket(packet)
+        this.setPosition(packet.x, packet.y, packet.z)
+        this.setFallingBlockPos(this.blockPos)
     }
 }

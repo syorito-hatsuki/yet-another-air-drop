@@ -90,7 +90,7 @@ class AirDropManager : SpecialSpawner {
     }
 
     private fun getNearbySpawnPos(world: WorldView, pos: BlockPos, range: Int): BlockPos? {
-        val halfWorldY = world.topY / 2
+        val halfWorldY = world.topYInclusive / 2
 
         repeat(9) {
             val randomX = pos.x + random.nextInt(range * 2) - range
