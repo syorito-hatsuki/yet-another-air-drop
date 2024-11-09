@@ -15,6 +15,7 @@
   "license": "MIT Licence",
   "icon": "assets/yetanotherairdrop/icon.png",
   "environment": "*",
+  "accessWidener": "yet-another-air-drop.accesswidener",
   "entrypoints": {
     "main": [
       {
