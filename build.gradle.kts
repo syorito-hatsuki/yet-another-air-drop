@@ -24,6 +24,10 @@ repositories {
     }
 }
 
+loom {
+    accessWidenerPath = File("src/main/resources/yet-another-air-drop.accesswidener")
+}
+
 dependencies {
     minecraft("com.mojang", "minecraft", minecraftVersion)
 
