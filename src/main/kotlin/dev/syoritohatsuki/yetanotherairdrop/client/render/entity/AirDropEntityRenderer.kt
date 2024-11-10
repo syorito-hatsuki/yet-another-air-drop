@@ -1,82 +1,47 @@
 package dev.syoritohatsuki.yetanotherairdrop.client.render.entity
 
+import dev.syoritohatsuki.yetanotherairdrop.YetAnotherAirDrop
+import dev.syoritohatsuki.yetanotherairdrop.client.registry.EntityModelsLayerRegistry
+import dev.syoritohatsuki.yetanotherairdrop.client.render.entity.model.AirDropEntityModel
 import dev.syoritohatsuki.yetanotherairdrop.entity.projectile.AirDropEntity
 import net.fabricmc.api.EnvType
 import net.fabricmc.api.Environment
-import net.minecraft.block.BlockRenderType
-import net.minecraft.block.BlockState
-import net.minecraft.block.Blocks
-import net.minecraft.client.render.Frustum
 import net.minecraft.client.render.OverlayTexture
-import net.minecraft.client.render.RenderLayers
+import net.minecraft.client.render.RenderLayer
 import net.minecraft.client.render.VertexConsumerProvider
-import net.minecraft.client.render.block.BlockRenderManager
 import net.minecraft.client.render.entity.EntityRenderer
 import net.minecraft.client.render.entity.EntityRendererFactory
-import net.minecraft.client.render.entity.state.FallingBlockEntityRenderState
+import net.minecraft.client.render.entity.state.EntityRenderState
 import net.minecraft.client.util.math.MatrixStack
-import net.minecraft.util.math.BlockPos
-import net.minecraft.util.math.random.Random
+import net.minecraft.util.Identifier
 
 @Environment(EnvType.CLIENT)
-class AirDropEntityRenderer(context: EntityRendererFactory.Context) : EntityRenderer<AirDropEntity, FallingBlockEntityRenderState>(context) {
+class AirDropEntityRenderer(context: EntityRendererFactory.Context) :
+    EntityRenderer<AirDropEntity, EntityRenderState>(context) {
 
-    private var blockRenderManager: BlockRenderManager = context.blockRenderManager
+    private var model: AirDropEntityModel = AirDropEntityModel(
+        context.getPart(EntityModelsLayerRegistry.MODEL_AIR_DROP_LAYER)
+    )
 
     init {
         shadowRadius = 0.5f
     }
 
-    override fun shouldRender(entity: AirDropEntity, frustum: Frustum, d: Double, e: Double, f: Double): Boolean =
-        when {
-            !super.shouldRender(entity, frustum, d, e, f) -> false
-            else -> Blocks.BARREL.defaultState != entity.world.getBlockState(entity.blockPos)
-        }
-
     override fun render(
-        fallingBlockEntityRenderState: FallingBlockEntityRenderState,
+        renderState: EntityRenderState,
         matrixStack: MatrixStack,
         vertexConsumerProvider: VertexConsumerProvider,
         light: Int
     ) {
-        val blockState: BlockState = fallingBlockEntityRenderState.blockState
-        if (blockState.renderType == BlockRenderType.MODEL) {
-            matrixStack.push()
-            matrixStack.translate(-0.5, 0.0, -0.5)
-            blockRenderManager
-                .modelRenderer
-                .render(
-                    fallingBlockEntityRenderState,
-                    blockRenderManager.getModel(blockState),
-                    blockState,
-                    fallingBlockEntityRenderState.currentPos,
-                    matrixStack,
-                    vertexConsumerProvider.getBuffer(RenderLayers.getMovingBlockLayer(blockState)),
-                    false,
-                    Random.create(),
-                    blockState.getRenderingSeed(fallingBlockEntityRenderState.fallingBlockPos),
-                    OverlayTexture.DEFAULT_UV
+        model.render(
+            matrixStack, vertexConsumerProvider.getBuffer(
+                RenderLayer.getEntitySolid(
+                    Identifier.of(YetAnotherAirDrop.MOD_ID, "textures/entity/airdrop.png")
                 )
-            matrixStack.pop()
-            super.render(fallingBlockEntityRenderState, matrixStack, vertexConsumerProvider, light)
-        }
-
-    }
-
-    override fun createRenderState(): FallingBlockEntityRenderState = FallingBlockEntityRenderState()
-
-    override fun updateRenderState(entity: AirDropEntity, state: FallingBlockEntityRenderState, tickDelta: Float) {
-        super.updateRenderState(entity, state, tickDelta)
-        val blockPos = BlockPos.ofFloored(
-            entity.x,
-            entity.boundingBox.maxY,
-            entity.z
+            ), light, OverlayTexture.DEFAULT_UV
         )
-        state.fallingBlockPos = entity.getFallingBlockPos()
-        state.currentPos = blockPos
-        state.blockState = Blocks.BARREL.defaultState
-        state.biome = entity.world.getBiome(blockPos)
-        state.world = entity.world
     }
+
+    override fun createRenderState(): EntityRenderState = EntityRenderState()
 }
 
