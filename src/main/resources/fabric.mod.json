@@ -13,7 +13,7 @@
     "sources": "https://github.com/syorito-hatsuki/${modId}"
   },
   "license": "MIT Licence",
-  "icon": "assets/yetanotherairdrop/icon.png",
+  "icon": "assets/yet-another-air-drop/icon.png",
   "environment": "*",
   "accessWidener": "yet-another-air-drop.accesswidener",
   "entrypoints": {
@@ -47,7 +47,7 @@
     ]
   },
   "mixins": [
-    "yetanotherairdrop.mixins.json"
+    "yet-another-air-drop.mixins.json"
   ],
   "depends": {
     "fabric": "*",
