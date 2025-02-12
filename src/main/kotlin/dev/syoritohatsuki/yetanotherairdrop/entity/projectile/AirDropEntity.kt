@@ -28,19 +28,19 @@ import net.minecraft.registry.Registries
 import net.minecraft.registry.RegistryKey
 import net.minecraft.registry.RegistryKeys
 import net.minecraft.server.network.EntityTrackerEntry
+import net.minecraft.server.world.ChunkTicketType
 import net.minecraft.server.world.ServerWorld
 import net.minecraft.sound.SoundCategory
 import net.minecraft.text.Text
 import net.minecraft.util.Formatting
 import net.minecraft.util.Identifier
-import net.minecraft.util.math.BlockPos
-import net.minecraft.util.math.Direction
-import net.minecraft.util.math.Vec3d
+import net.minecraft.util.math.*
 import net.minecraft.world.World
 import net.minecraft.world.explosion.Explosion
 
 class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type, world) {
 
+    private var chunkTicketExpiryTicks: Long = 0L
     private var drop: Drop? = null
     private var tries: Byte = 0
 
@@ -135,6 +135,14 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
                 ) {
                     onGrounded(blockState)
                 }
+            }
+
+            val i = ChunkSectionPos.getSectionCoordFloored(pos.x)
+            val j = ChunkSectionPos.getSectionCoordFloored(pos.z)
+            if ((--this.chunkTicketExpiryTicks <= 0L || i != ChunkSectionPos.getSectionCoord(blockPos.x)
+                        || j != ChunkSectionPos.getSectionCoord(blockPos.z))) {
+                (world as ServerWorld).chunkManager.addTicket(ChunkTicketType.ENDER_PEARL, chunkPos, 2, chunkPos)
+                chunkTicketExpiryTicks = ChunkTicketType.ENDER_PEARL.expiryTicks
             }
         }
 
