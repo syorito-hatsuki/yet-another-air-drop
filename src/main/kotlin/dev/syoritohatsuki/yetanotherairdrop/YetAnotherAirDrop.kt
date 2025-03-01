@@ -26,11 +26,16 @@ object YetAnotherAirDrop : ModInitializer {
         EntityTypeRegistry
 
         CommandRegistrationCallback.EVENT.register { dispatcher, _, _ ->
-            dispatcher.register(literal<ServerCommandSource>(MOD_ID).then(literal<ServerCommandSource>("spawn").executes {
-                it.source.player?.pos?.apply {
-                    it.source.player?.serverWorld?.spawnEntity(AirDropEntity(it.source.world, x, y, z))
+            dispatcher.register(literal<ServerCommandSource>(MOD_ID).requires {
+                it.hasPermissionLevel(4)
+            }.then(literal<ServerCommandSource>("spawn").executes {
+                it.source.player?.pos?.let { vector ->
+                    it.source.player?.serverWorld?.spawnEntity(
+                        AirDropEntity(it.source.world, vector.x, vector.y, vector.z)
+                    )
+                    return@executes 1
                 }
-                1
+                throw RuntimeException("Can't spawn entity. Player is in superposition")
             }))
         }
     }
