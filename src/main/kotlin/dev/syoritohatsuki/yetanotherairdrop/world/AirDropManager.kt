@@ -3,23 +3,60 @@ package dev.syoritohatsuki.yetanotherairdrop.world
 import dev.syoritohatsuki.yetanotherairdrop.DatapackLoader
 import dev.syoritohatsuki.yetanotherairdrop.YetAnotherAirDrop.logger
 import dev.syoritohatsuki.yetanotherairdrop.entity.projectile.AirDropEntity
+import dev.syoritohatsuki.yetanotherairdrop.server.world.ModdedChunkTicketType
 import net.minecraft.block.Blocks
+import net.minecraft.entity.EntityType
+import net.minecraft.entity.SpawnReason
+import net.minecraft.nbt.*
+import net.minecraft.server.MinecraftServer
 import net.minecraft.server.world.ServerWorld
+import net.minecraft.util.Identifier
+import net.minecraft.util.WorldSavePath
 import net.minecraft.util.math.BlockPos
+import net.minecraft.util.math.ChunkPos
 import net.minecraft.util.math.random.Random
 import net.minecraft.world.Heightmap
+import net.minecraft.world.World
 import net.minecraft.world.WorldView
 import net.minecraft.world.spawner.SpecialSpawner
+import kotlin.io.path.createFile
+import kotlin.io.path.notExists
 
-class AirDropManager : SpecialSpawner {
+class AirDropManager(private val server: MinecraftServer) : SpecialSpawner {
 
     companion object {
-        const val DEFAULT_SPAWN_TIMER: Int = 600
 
-        val random: Random = Random.create()
+        private const val AIR_DROPS_KEY = "air_drops"
+        private const val AIR_DROP_DIMENSION_KEY = "air_drop_dimension"
+        private const val DEFAULT_SPAWN_TIMER: Int = 600
+
+        private val airDrops: MutableSet<AirDropEntity> = mutableSetOf()
+        private val random: Random = Random.create()
 
         private var instanceCount = 0
+
+        fun addAirDropTicket(world: ServerWorld, chunkPos: ChunkPos) {
+            world.chunkManager.addTicket(ModdedChunkTicketType.AIR_DROP, chunkPos, 2, chunkPos)
+        }
+
+        fun handleBarrelFly(airDropEntity: AirDropEntity): Long {
+            if (airDropEntity.world !is ServerWorld) return 0L
+
+            val serverWorld = (airDropEntity.world as ServerWorld)
+            airDrops.add(airDropEntity)
+            serverWorld.resetIdleTimeout()
+            addAirDropTicket(serverWorld, airDropEntity.chunkPos)
+            return ModdedChunkTicketType.AIR_DROP.expiryTicks - 1L
+        }
     }
+
+    private val airDropsPath = server.getSavePath(WorldSavePath.ROOT).resolve("airdrops.dat").apply {
+        if (notExists()) {
+            createFile()
+            NbtIo.write(NbtCompound(), this)
+        }
+    }
+    private val airDropsNbt = NbtIo.read(airDropsPath) ?: NbtCompound()
 
     private var spawnTimer = 0
 
@@ -52,9 +89,16 @@ class AirDropManager : SpecialSpawner {
         val playerWorld = playerEntity.world
         val blockPos3: BlockPos = getNearbySpawnPos(playerWorld, playerEntity.blockPos, 48) ?: return 0
 
-        logger.debug("Try to spawn Air Drop in: ${playerWorld.registryKey.value} at ${blockPos3.toShortString()}")
+        logger.debug(
+            "Try to spawn Air Drop in: {} at {}", playerWorld.registryKey.value, blockPos3.toShortString()
+        )
 
-        if (!playerWorld.spawnEntity(AirDropEntity(playerWorld, blockPos3.x.toDouble(), blockPos3.y.toDouble(), blockPos3.z.toDouble()))) {
+        if (!playerWorld.spawnEntity(
+                AirDropEntity(
+                    playerWorld, blockPos3.x.toDouble(), blockPos3.y.toDouble(), blockPos3.z.toDouble()
+                )
+            )
+        ) {
             logger.debug("Can't spawn Entity")
             return 0
         }
@@ -62,29 +106,35 @@ class AirDropManager : SpecialSpawner {
         return 1
     }
 
-    private fun findFirstAir(start: Int, pos: BlockPos.Mutable, world: WorldView): BlockPos.Mutable? {
+    private fun findFirstAir(
+        start: Int, pos: BlockPos.Mutable, world: WorldView
+    ): BlockPos.Mutable? {
         for (y in start downTo 0) {
             pos.y = y
             if (world.getBlockState(pos).isOf(Blocks.AIR)) {
-                logger.debug("Is air: ${world.getBlockState(pos)} | ${pos.x}, ${pos.y}, ${pos.z}")
+                logger.debug("Is air: {} | {}, {}, {}", world.getBlockState(pos), pos.x, pos.y, pos.z)
                 return pos
             }
         }
         return null
     }
 
-    private fun findFirstSolid(start: Int, pos: BlockPos.Mutable, world: WorldView): BlockPos.Mutable? {
+    private fun findFirstSolid(
+        start: Int, pos: BlockPos.Mutable, world: WorldView
+    ): BlockPos.Mutable? {
         for (y in start downTo 0) {
             pos.y = y
             if (world.getBlockState(pos).isSolidBlock(world, pos)) {
-                logger.debug("Is solid: ${world.getBlockState(pos)} | ${pos.x}, ${pos.y}, ${pos.z}")
+                logger.debug("Is solid: {} | {}, {}, {}", world.getBlockState(pos), pos.x, pos.y, pos.z)
                 return pos
             }
         }
         return null
     }
 
-    private fun getSurfaceForDimensionWithRoof(world: WorldView, x: Int, halfWorldY: Int, z: Int): Int {
+    private fun getSurfaceForDimensionWithRoof(
+        world: WorldView, x: Int, halfWorldY: Int, z: Int
+    ): Int {
         val solid = findFirstSolid(halfWorldY, BlockPos.Mutable(x, halfWorldY, z), world) ?: return -1
         return findFirstAir(solid.y, solid, world)?.y ?: -1
     }
@@ -115,5 +165,63 @@ class AirDropManager : SpecialSpawner {
 
         logger.debug("Can't spawn near: ${pos.toShortString()}")
         return null
+    }
+
+    fun writeAirDrops() {
+        if (airDrops.isEmpty()) return
+
+        airDropsNbt.put(AIR_DROPS_KEY, NbtList().apply {
+            airDrops.forEach { airDrop ->
+                if (airDrop.isRemoved) {
+                    logger.warn("Trying to save removed air drop, skipping")
+                    return@forEach
+                }
+
+                add(NbtCompound().apply {
+                    airDrop.saveNbt(this)
+                    Identifier.CODEC.encodeStart(NbtOps.INSTANCE, airDrop.world.registryKey.value)
+                        .resultOrPartial { msg: String? -> logger.error(msg) }
+                        .ifPresent { put(AIR_DROP_DIMENSION_KEY, it) }
+                })
+            }
+        })
+
+        NbtIo.write(airDropsNbt, airDropsPath)
+    }
+
+    fun readAirDrops() {
+        if (airDropsNbt.contains(
+                AIR_DROPS_KEY, NbtElement.LIST_TYPE.toInt()
+            ) && airDropsNbt.get(AIR_DROPS_KEY) is NbtList
+        ) {
+            (airDropsNbt.get(AIR_DROPS_KEY) as NbtList).forEach { nbtElement ->
+                if (nbtElement is NbtCompound && nbtElement.contains(AIR_DROP_DIMENSION_KEY)) {
+                    val optional = World.CODEC.parse(NbtOps.INSTANCE, nbtElement[AIR_DROP_DIMENSION_KEY])
+                        .resultOrPartial(logger::error)
+
+                    if (optional.isEmpty) {
+                        logger.warn("No dimension defined for air drop, skipping")
+                        return@forEach
+                    }
+
+                    val serverWorld: ServerWorld = server.getWorld(optional.get()) ?: run {
+                        logger.warn("Trying to load air drop without level ({}) being loaded, skipping", optional.get())
+                        return@forEach
+                    }
+
+                    val airDropEntity = EntityType.loadEntityWithPassengers(nbtElement, serverWorld, SpawnReason.LOAD) {
+                        when {
+                            !serverWorld.tryLoadEntity(it) -> null
+                            else -> it
+                        }
+                    } ?: run {
+                        logger.warn("Failed to spawn player air drop in level ({}), skipping", optional.get())
+                        return@forEach
+                    }
+
+                    addAirDropTicket(serverWorld, airDropEntity.chunkPos)
+                }
+            }
+        }
     }
 }

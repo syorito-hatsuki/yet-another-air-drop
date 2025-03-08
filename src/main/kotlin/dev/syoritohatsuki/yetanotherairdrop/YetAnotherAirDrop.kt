@@ -4,6 +4,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder.literal
 import com.mojang.logging.LogUtils
 import dev.syoritohatsuki.yetanotherairdrop.entity.EntityTypeRegistry
 import dev.syoritohatsuki.yetanotherairdrop.entity.projectile.AirDropEntity
+import dev.syoritohatsuki.yetanotherairdrop.server.AirDropManagerAccessor
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
@@ -23,14 +24,27 @@ object YetAnotherAirDrop : ModInitializer {
             it.commandManager.executeWithPrefix(it.commandSource, "reload")
         }
 
+        ServerLifecycleEvents.SERVER_STARTED.register {
+            (it as AirDropManagerAccessor).`yet_another_air_drop$getAirDropManager`?.readAirDrops()
+        }
+
+        ServerLifecycleEvents.SERVER_STOPPING.register {
+            (it as AirDropManagerAccessor).`yet_another_air_drop$getAirDropManager`?.writeAirDrops()
+        }
+
         EntityTypeRegistry
 
         CommandRegistrationCallback.EVENT.register { dispatcher, _, _ ->
-            dispatcher.register(literal<ServerCommandSource>(MOD_ID).then(literal<ServerCommandSource>("spawn").executes {
-                it.source.player?.pos?.apply {
-                    it.source.player?.serverWorld?.spawnEntity(AirDropEntity(it.source.world, x, y, z))
+            dispatcher.register(literal<ServerCommandSource>(MOD_ID).requires {
+                it.hasPermissionLevel(4)
+            }.then(literal<ServerCommandSource>("spawn").executes {
+                it.source.player?.pos?.let { vector ->
+                    it.source.player?.serverWorld?.spawnEntity(
+                        AirDropEntity(it.source.world, vector.x, vector.y, vector.z)
+                    )
+                    return@executes 1
                 }
-                1
+                throw RuntimeException("Can't spawn entity. Player is in superposition")
             }))
         }
     }
