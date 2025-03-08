@@ -4,6 +4,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder.literal
 import com.mojang.logging.LogUtils
 import dev.syoritohatsuki.yetanotherairdrop.entity.EntityTypeRegistry
 import dev.syoritohatsuki.yetanotherairdrop.entity.projectile.AirDropEntity
+import dev.syoritohatsuki.yetanotherairdrop.server.AirDropManagerAccessor
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
@@ -21,6 +22,14 @@ object YetAnotherAirDrop : ModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register {
             DatapackLoader.register(it)
             it.commandManager.executeWithPrefix(it.commandSource, "reload")
+        }
+
+        ServerLifecycleEvents.SERVER_STARTED.register {
+            (it as AirDropManagerAccessor).`yet_another_air_drop$getAirDropManager`?.readAirDrops()
+        }
+
+        ServerLifecycleEvents.SERVER_STOPPING.register {
+            (it as AirDropManagerAccessor).`yet_another_air_drop$getAirDropManager`?.writeAirDrops()
         }
 
         EntityTypeRegistry

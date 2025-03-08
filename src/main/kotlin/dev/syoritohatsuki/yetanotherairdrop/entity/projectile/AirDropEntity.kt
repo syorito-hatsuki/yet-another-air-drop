@@ -4,6 +4,8 @@ import dev.syoritohatsuki.yetanotherairdrop.DatapackLoader
 import dev.syoritohatsuki.yetanotherairdrop.YetAnotherAirDrop.logger
 import dev.syoritohatsuki.yetanotherairdrop.dto.Drop
 import dev.syoritohatsuki.yetanotherairdrop.entity.EntityTypeRegistry
+import dev.syoritohatsuki.yetanotherairdrop.server.world.ModdedChunkTicketType
+import dev.syoritohatsuki.yetanotherairdrop.world.AirDropManager
 import net.minecraft.block.Block
 import net.minecraft.block.BlockState
 import net.minecraft.block.Blocks
@@ -14,8 +16,6 @@ import net.minecraft.entity.EntityType
 import net.minecraft.entity.MovementType
 import net.minecraft.entity.damage.DamageSource
 import net.minecraft.entity.data.DataTracker
-import net.minecraft.entity.data.TrackedData
-import net.minecraft.entity.data.TrackedDataHandlerRegistry
 import net.minecraft.item.AutomaticItemPlacementContext
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
@@ -28,26 +28,25 @@ import net.minecraft.registry.Registries
 import net.minecraft.registry.RegistryKey
 import net.minecraft.registry.RegistryKeys
 import net.minecraft.server.network.EntityTrackerEntry
-import net.minecraft.server.world.ChunkTicketType
 import net.minecraft.server.world.ServerWorld
 import net.minecraft.sound.SoundCategory
 import net.minecraft.text.Text
 import net.minecraft.util.Formatting
 import net.minecraft.util.Identifier
-import net.minecraft.util.math.*
+import net.minecraft.util.math.BlockPos
+import net.minecraft.util.math.ChunkSectionPos
+import net.minecraft.util.math.Direction
+import net.minecraft.util.math.Vec3d
 import net.minecraft.world.World
 import net.minecraft.world.explosion.Explosion
 
 class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type, world) {
 
-    private var chunkTicketExpiryTicks: Long = 0L
     private var drop: Drop? = null
     private var tries: Byte = 0
+    private var chunkTicketExpiryTicks: Long = 0
 
     companion object {
-        val BLOCK_POS: TrackedData<BlockPos> = DataTracker.registerData(
-            AirDropEntity::class.java, TrackedDataHandlerRegistry.BLOCK_POS
-        )
         val BLOCK: Block = Blocks.BARREL
     }
 
@@ -57,7 +56,6 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
         this.prevX = x
         this.prevY = y
         this.prevZ = z
-        this.setFallingBlockPos(this.blockPos)
     }
 
     constructor(world: World, x: Double, y: Double, z: Double) : this(EntityTypeRegistry.AIR_DROP, world) {
@@ -68,12 +66,6 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
             random.nextDouble() * 0.2 * 2.0,
             (random.nextDouble() * 0.2f - 0.1f) * 2.0
         )
-    }
-
-    fun getFallingBlockPos(): BlockPos = dataTracker.get(BLOCK_POS)
-
-    private fun setFallingBlockPos(pos: BlockPos) {
-        dataTracker.set(BLOCK_POS, pos)
     }
 
     override fun isImmuneToExplosion(explosion: Explosion): Boolean = true
@@ -118,13 +110,28 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
         }
     }
 
+    override fun initDataTracker(builder: DataTracker.Builder?) {
+
+    }
+
     override fun tick() {
+        logger.info("Cords: $pos")
+
         super.tick()
 
         applyGravity()
         move(MovementType.SELF, velocity)
 
         if (world is ServerWorld && isAlive) {
+
+            val blockPos = BlockPos.ofFloored(this.pos)
+            if (--this.chunkTicketExpiryTicks <= 0L
+                || ChunkSectionPos.getSectionCoordFloored(this.pos.x) != ChunkSectionPos.getSectionCoord(blockPos.x)
+                || ChunkSectionPos.getSectionCoordFloored(this.pos.z) != ChunkSectionPos.getSectionCoord(blockPos.z)
+            ) {
+                this.chunkTicketExpiryTicks = AirDropManager.handleBarrelFly(this)
+            }
+
             val blockState = world.getBlockState(blockPos)
             if (!blockState.isOf(Blocks.MOVING_PISTON)) {
                 if (blockState.canReplace(
@@ -135,14 +142,6 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
                 ) {
                     onGrounded(blockState)
                 }
-            }
-
-            val i = ChunkSectionPos.getSectionCoordFloored(pos.x)
-            val j = ChunkSectionPos.getSectionCoordFloored(pos.z)
-            if ((--this.chunkTicketExpiryTicks <= 0L || i != ChunkSectionPos.getSectionCoord(blockPos.x)
-                        || j != ChunkSectionPos.getSectionCoord(blockPos.z))) {
-                (world as ServerWorld).chunkManager.addTicket(ChunkTicketType.ENDER_PEARL, chunkPos, 2, chunkPos)
-                chunkTicketExpiryTicks = ChunkTicketType.ENDER_PEARL.expiryTicks
             }
         }
 
@@ -160,7 +159,7 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
             return trySetBarrel(state, blockPos.up(1))
         }
 
-        if (world.setBlockState(blockPos, Blocks.BARREL.defaultState, Block.NOTIFY_ALL_AND_REDRAW)) {
+        if (world.setBlockState(blockPos, BLOCK.defaultState, Block.NOTIFY_ALL_AND_REDRAW)) {
 
             val randomTable = DatapackLoader.getRandomLootTable(drop!!)
 
@@ -180,23 +179,31 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
                 chunkManager.chunkLoadingManager.sendToOtherNearbyPlayers(
                     this@AirDropEntity, BlockUpdateS2CPacket(blockPos, world.getBlockState(blockPos))
                 )
-                drop?.sound?.let {
-                    if (it.isBlank()) return@let
-                    try {
-                        world.playSound(
-                            this@AirDropEntity, blockPos, Registries.SOUND_EVENT.get(Identifier.of(it)), SoundCategory.BLOCKS, 1F, 1F
-                        )
-                    } catch (e: Exception) {
-                        logger.error(e.stackTraceToString())
+                server.playerManager?.playerList?.forEach { player ->
+                    drop?.sound?.let {
+                        if (it.isBlank()) return@let
+                        try {
+                            logger.warn("PLAY: $it")
+                            world.playSound(
+                                this@AirDropEntity,
+                                player.blockPos,
+                                Registries.SOUND_EVENT.get(Identifier.of(it)),
+                                SoundCategory.BLOCKS,
+                                1F,
+                                1F
+                            )
+                        } catch (e: Exception) {
+                            logger.error(e.stackTraceToString())
+                        }
+                    }
+
+                    drop?.message?.let {
+                        if (it.isBlank()) return@let
+                        player.sendMessageToClient(Text.of(it), false)
                     }
                 }
 
-                drop?.message?.let {
-                    if (it.isBlank()) return@let
-                    server.playerManager?.playerList?.forEach { entity ->
-                        entity.sendMessageToClient(Text.of(it), false)
-                    }
-                }
+                chunkManager.removeTicket(ModdedChunkTicketType.AIR_DROP, chunkPos, 1, chunkPos)
             }
         }
 
@@ -206,10 +213,6 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
     }
 
     override fun getGravity(): Double = 0.0025
-
-    override fun initDataTracker(builder: DataTracker.Builder) {
-        builder.add(BLOCK_POS, BlockPos.ORIGIN)
-    }
 
     override fun readCustomDataFromNbt(nbt: NbtCompound) {
         val dropNbt = nbt.getString("drop")
@@ -222,27 +225,26 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
             Drop.fromString(dropNbt)
         }
 
-        logger.error("=====[ Read NBT ]=====")
-        logger.error(dropNbt)
-        logger.error(drop.toString())
-        logger.error("======================")
+        logger.debug("=====[ Read NBT ]=====")
+        logger.debug(dropNbt)
+        logger.debug(drop.toString())
+        logger.debug("======================")
     }
 
     override fun writeCustomDataToNbt(nbt: NbtCompound) {
-        logger.error("=====[ Write NBT ]=====")
-        logger.error(drop.toString())
-        logger.error("=======================")
+        logger.debug("=====[ Write NBT ]=====")
+        logger.debug(drop.toString())
+        logger.debug("=======================")
 
         if (drop != null) nbt.putString("drop", drop?.toStringJson())
     }
 
 
     override fun createSpawnPacket(entityTrackerEntry: EntityTrackerEntry?): Packet<ClientPlayPacketListener> =
-        EntitySpawnS2CPacket(this, entityTrackerEntry, Block.getRawIdFromState(Blocks.BARREL.defaultState))
+        EntitySpawnS2CPacket(this, entityTrackerEntry, Block.getRawIdFromState(BLOCK.defaultState))
 
     override fun onSpawnPacket(packet: EntitySpawnS2CPacket) {
         super.onSpawnPacket(packet)
         this.setPosition(packet.x, packet.y, packet.z)
-        this.setFallingBlockPos(this.blockPos)
     }
 }
