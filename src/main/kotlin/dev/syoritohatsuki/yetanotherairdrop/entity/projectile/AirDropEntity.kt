@@ -16,7 +16,6 @@ import net.minecraft.entity.EntityType
 import net.minecraft.entity.MovementType
 import net.minecraft.entity.damage.DamageSource
 import net.minecraft.entity.data.DataTracker
-import net.minecraft.item.AutomaticItemPlacementContext
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
 import net.minecraft.nbt.NbtCompound
@@ -35,7 +34,6 @@ import net.minecraft.util.Formatting
 import net.minecraft.util.Identifier
 import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.ChunkSectionPos
-import net.minecraft.util.math.Direction
 import net.minecraft.util.math.Vec3d
 import net.minecraft.world.World
 import net.minecraft.world.explosion.Explosion
@@ -90,7 +88,7 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
                 }
 
                 buildSafePlatform()
-                trySetBarrel(state, blockPos.up().offset(Direction.Axis.X, 1).offset(Direction.Axis.Z, 1))
+                trySetBarrel(state, blockPos.up())
                 return
             }
 
@@ -102,7 +100,7 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
         for (offsetX in -1..1) {
             for (offsetZ in -1..1) {
                 world.setBlockState(
-                    BlockPos(x.toInt() + offsetX, y.toInt(), z.toInt() + offsetZ),
+                    BlockPos(blockPos.x + offsetX, blockPos.y, blockPos.z + offsetZ),
                     Blocks.GLASS.defaultState,
                     Block.NOTIFY_ALL_AND_REDRAW
                 )
@@ -115,12 +113,7 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
     }
 
     override fun tick() {
-        logger.info("Cords: $pos")
-
         super.tick()
-
-        applyGravity()
-        move(MovementType.SELF, velocity)
 
         if (world is ServerWorld && isAlive) {
 
@@ -134,27 +127,31 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
 
             val blockState = world.getBlockState(blockPos)
             if (!blockState.isOf(Blocks.MOVING_PISTON)) {
-                if (blockState.canReplace(
-                        AutomaticItemPlacementContext(
-                            this.world, blockPos, Direction.DOWN, ItemStack.EMPTY, Direction.UP
-                        )
-                    ) && BLOCK.defaultState.canPlaceAt(world, blockPos)
-                ) {
-                    onGrounded(blockState)
-                }
+                onGrounded(blockState)
             }
         }
+
+        applyGravity()
+        move(MovementType.SELF, velocity)
 
         velocity = velocity.multiply(0.98)
     }
 
     private fun trySetBarrel(state: BlockState, blockPos: BlockPos): Boolean {
+
+        logger.warn("-------------")
+        logger.warn("Tries: $tries")
+        logger.warn("Ground: $isOnGround")
+        logger.warn("BlockPos: $blockPos")
+        logger.warn("-------------")
+
         if (tries >= 3) {
             logger.error("Almost impossible, but can't set barrel on ground after 3 try :(")
+            discard()
             return false
         }
 
-        if (!state.isReplaceable) {
+        if (!BLOCK.defaultState.canPlaceAt(world, blockPos)) {
             tries++
             return trySetBarrel(state, blockPos.up(1))
         }

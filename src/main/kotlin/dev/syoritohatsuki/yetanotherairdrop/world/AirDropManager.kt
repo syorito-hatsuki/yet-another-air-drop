@@ -1,5 +1,6 @@
 package dev.syoritohatsuki.yetanotherairdrop.world
 
+import dev.syoritohatsuki.yetanotherairdrop.ConfigManager
 import dev.syoritohatsuki.yetanotherairdrop.DatapackLoader
 import dev.syoritohatsuki.yetanotherairdrop.YetAnotherAirDrop.logger
 import dev.syoritohatsuki.yetanotherairdrop.entity.projectile.AirDropEntity
@@ -28,7 +29,6 @@ class AirDropManager(private val server: MinecraftServer) : SpecialSpawner {
 
         private const val AIR_DROPS_KEY = "air_drops"
         private const val AIR_DROP_DIMENSION_KEY = "air_drop_dimension"
-        private const val DEFAULT_SPAWN_TIMER: Int = 600
 
         private val airDrops: MutableSet<AirDropEntity> = mutableSetOf()
         private val random: Random = Random.create()
@@ -62,12 +62,12 @@ class AirDropManager(private val server: MinecraftServer) : SpecialSpawner {
 
     init {
         logger.debug("Instance count: ${++instanceCount}. It should be 1, but may can bigger :D")
-        spawnTimer = DEFAULT_SPAWN_TIMER
+        spawnTimer = ConfigManager.read().delay
     }
 
     override fun spawn(world: ServerWorld, spawnMonsters: Boolean, spawnAnimals: Boolean): Int {
         if (--spawnTimer > 0) return 0
-        spawnTimer = DEFAULT_SPAWN_TIMER
+        spawnTimer = ConfigManager.read().delay
         return trySpawn(world)
     }
 
@@ -106,9 +106,7 @@ class AirDropManager(private val server: MinecraftServer) : SpecialSpawner {
         return 1
     }
 
-    private fun findFirstAir(
-        start: Int, pos: BlockPos.Mutable, world: WorldView
-    ): BlockPos.Mutable? {
+    private fun findFirstAir(start: Int, pos: BlockPos.Mutable, world: WorldView): BlockPos.Mutable? {
         for (y in start downTo 0) {
             pos.y = y
             if (world.getBlockState(pos).isOf(Blocks.AIR)) {
@@ -119,9 +117,7 @@ class AirDropManager(private val server: MinecraftServer) : SpecialSpawner {
         return null
     }
 
-    private fun findFirstSolid(
-        start: Int, pos: BlockPos.Mutable, world: WorldView
-    ): BlockPos.Mutable? {
+    private fun findFirstSolid(start: Int, pos: BlockPos.Mutable, world: WorldView): BlockPos.Mutable? {
         for (y in start downTo 0) {
             pos.y = y
             if (world.getBlockState(pos).isSolidBlock(world, pos)) {
@@ -132,9 +128,7 @@ class AirDropManager(private val server: MinecraftServer) : SpecialSpawner {
         return null
     }
 
-    private fun getSurfaceForDimensionWithRoof(
-        world: WorldView, x: Int, halfWorldY: Int, z: Int
-    ): Int {
+    private fun getSurfaceForDimensionWithRoof(world: WorldView, x: Int, halfWorldY: Int, z: Int): Int {
         val solid = findFirstSolid(halfWorldY, BlockPos.Mutable(x, halfWorldY, z), world) ?: return -1
         return findFirstAir(solid.y, solid, world)?.y ?: -1
     }
