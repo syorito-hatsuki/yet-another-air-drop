@@ -118,9 +118,9 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
         if (world is ServerWorld && isAlive) {
 
             val blockPos = BlockPos.ofFloored(this.pos)
-            if (--this.chunkTicketExpiryTicks <= 0L
-                || ChunkSectionPos.getSectionCoordFloored(this.pos.x) != ChunkSectionPos.getSectionCoord(blockPos.x)
-                || ChunkSectionPos.getSectionCoordFloored(this.pos.z) != ChunkSectionPos.getSectionCoord(blockPos.z)
+            if (--this.chunkTicketExpiryTicks <= 0L || ChunkSectionPos.getSectionCoordFloored(this.pos.x) != ChunkSectionPos.getSectionCoord(
+                    blockPos.x
+                ) || ChunkSectionPos.getSectionCoordFloored(this.pos.z) != ChunkSectionPos.getSectionCoord(blockPos.z)
             ) {
                 this.chunkTicketExpiryTicks = AirDropManager.handleBarrelFly(this)
             }
@@ -138,12 +138,6 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
     }
 
     private fun trySetBarrel(state: BlockState, blockPos: BlockPos): Boolean {
-
-        logger.warn("-------------")
-        logger.warn("Tries: $tries")
-        logger.warn("Ground: $isOnGround")
-        logger.warn("BlockPos: $blockPos")
-        logger.warn("-------------")
 
         if (tries >= 3) {
             logger.error("Almost impossible, but can't set barrel on ground after 3 try :(")
@@ -176,7 +170,9 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
                 chunkManager.chunkLoadingManager.sendToOtherNearbyPlayers(
                     this@AirDropEntity, BlockUpdateS2CPacket(blockPos, world.getBlockState(blockPos))
                 )
-                server.playerManager?.playerList?.forEach { player ->
+                server.playerManager?.playerList?.filter {
+                    it.world.registryKey.value == world.registryKey.value
+                }?.forEach { player ->
                     drop?.sound?.let {
                         if (it.isBlank()) return@let
                         try {
