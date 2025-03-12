@@ -1,8 +1,0 @@
-{
-  "name": "First Aid",
-  "message": "First Aid kit landed",
-  "sound": "minecraft:entity.firework_rocket.blast",
-  "lootTables": [
-    "minecraft:ssss"
-  ]
-}

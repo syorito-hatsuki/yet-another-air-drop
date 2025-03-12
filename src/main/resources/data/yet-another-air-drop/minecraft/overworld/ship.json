@@ -1,8 +1,0 @@
-{
-  "name": "Ship",
-  "message": "",
-  "sound": "minecraft:entity.experience_orb.pickup",
-  "lootTables": [
-    "minecraft:chests/underwater_ruin_big"
-  ]
-}
