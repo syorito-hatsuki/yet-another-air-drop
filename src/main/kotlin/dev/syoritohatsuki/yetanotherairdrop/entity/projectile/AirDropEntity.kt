@@ -80,7 +80,13 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
         if (world.isClient) return
 
         (world as? ServerWorld)?.let { serverWorld ->
-            drop = drop ?: DatapackLoader.getRandomDrop(serverWorld.registryKey.value) ?: return
+
+            drop = drop ?: DatapackLoader.getRandomDrop(serverWorld.registryKey.value) ?: run {
+                discard()
+                logger.warn("No drop found for ${serverWorld.registryKey.value} dimension")
+                return
+            }
+
             if (blockY == serverWorld.bottomY) {
                 if (!drop!!.safePlatform) {
                     discard()
@@ -138,7 +144,6 @@ class AirDropEntity(type: EntityType<AirDropEntity>, world: World) : Entity(type
     }
 
     private fun trySetBarrel(state: BlockState, blockPos: BlockPos): Boolean {
-
         if (tries >= 3) {
             logger.error("Almost impossible, but can't set barrel on ground after 3 try :(")
             discard()
