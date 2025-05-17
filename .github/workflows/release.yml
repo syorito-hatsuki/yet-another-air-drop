@@ -1,8 +1,7 @@
 name: Release Mod
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
