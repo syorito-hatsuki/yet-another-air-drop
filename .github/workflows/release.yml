@@ -37,7 +37,7 @@ jobs:
       - name: Extract version from Gradle
         id: get_version
         run: |
-          VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' build.gradle.kts)
+          VERSION=$(grep -oP 'modVersion\s*=\s*"\K[^"]+' gradle.properties)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
