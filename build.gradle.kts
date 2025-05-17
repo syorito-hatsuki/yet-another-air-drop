@@ -3,8 +3,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val javaVersion = JavaVersion.VERSION_21
 val minecraftVersion: String by project
 val modVersion: String by project
-val mavenGroup: String by project
-val modId: String by project
 
 plugins {
     id("fabric-loom")
@@ -13,7 +11,7 @@ plugins {
 }
 
 base {
-    archivesName.set("$modId-$modVersion-$minecraftVersion")
+    archivesName.set("yet-another-air-drop-$modVersion-$minecraftVersion")
 }
 
 repositories {
@@ -71,22 +69,8 @@ tasks {
     }
 
     processResources {
-        val modName: String by project
-        val modDescription: String by project
-
         filesMatching("fabric.mod.json") {
-            expand(
-                mutableMapOf(
-                    "modId" to modId,
-                    "modName" to modName,
-                    "modVersion" to modVersion,
-                    "modDescription" to modDescription,
-                    "minecraftVersion" to minecraftVersion,
-                )
-            )
-        }
-        filesMatching("yetanotherairdrop.mixins.json") {
-            expand(mutableMapOf("modId" to modId))
+            expand(mutableMapOf("version" to modVersion))
         }
     }
 

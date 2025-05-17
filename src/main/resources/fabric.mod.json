@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "id": "${modId}",
-  "version": "${modVersion}",
-  "name": "${modName}",
-  "description": "${modDescription}",
+  "id": "yet-another-air-drop",
+  "version": "${version}",
+  "name": "Yet Another Air Drop",
+  "description": "Sweeties grounding from the skies",
   "authors": [
     "Syorito Hatsuki"
   ],
   "contact": {
     "homepage": "https://syorito-hatsuki.dev/",
-    "issues": "https://github.com/syorito-hatsuki/${modId}/issues",
-    "sources": "https://github.com/syorito-hatsuki/${modId}"
+    "issues": "https://github.com/syorito-hatsuki/yet-another-air-drop/issues",
+    "sources": "https://github.com/syorito-hatsuki/yet-another-air-drop"
   },
   "license": "MIT Licence",
   "icon": "assets/yet-another-air-drop/icon.png",
@@ -53,7 +53,7 @@
     "fabric": "*",
     "fabricloader": "*",
     "fabric-language-kotlin": "*",
-    "minecraft": ">=${minecraftVersion}",
+    "minecraft": ">=1.21.4",
     "java": "*"
   },
   "recommends": {
