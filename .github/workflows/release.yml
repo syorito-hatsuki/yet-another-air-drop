@@ -76,11 +76,15 @@ jobs:
 
       - name: Notify Discord
         run: |
-          CHANGELOG=$(jq -Rsa . < CHANGELOG.md)
-          MESSAGE="# ${{ steps.get_version.outputs.MOD_VERSION }}\n $(jq -r <<<"$CHANGELOG") \n> ${{ steps.get_version.outputs.MC_VERSION }} ${{ steps.extract_modr.outputs.modrinth_url }} \n> ${{ steps.get_version.outputs.MC_VERSION }} ${{ steps.create_release.outputs.url }}"
-          
+          # Read full changelog and build the full message
+          CHANGELOG=$(cat CHANGELOG.md)
+          MESSAGE="# ${{ steps.get_version.outputs.modVersion }}"$'\n'"$CHANGELOG"$'\n'"\
+          > ${{ steps.get_version.outputs.version }} ${{ steps.extract_modr.outputs.modrinth_url }}"
+      
+          # Use jq to encode it safely
           jq -n --arg content "$MESSAGE" '{content: $content}' > payload.json
           
+          # Send to Discord
           curl -H "Authorization: Bot ${{ secrets.DISCORD_BOT_TOKEN }}" \
                -H "Content-Type: application/json" \
                -X POST \
