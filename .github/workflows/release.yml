@@ -72,9 +72,11 @@ jobs:
       - name: Notify Discord
         run: |
           CHANGELOG=$(cat CHANGELOG.md)
-          MESSAGE="# ${{ steps.get_version.outputs.mod_version }}"$'\n'"$CHANGELOG"$'\n'"\
-          > <:modrinth:1373792332469768213> ${{ steps.get_version.outputs.minecraft_version }} ${{ steps.get_modrinth_url.outputs.url }}"$'\n'"\
-          > <:github:1373792356024979617> ${{ steps.get_version.outputs.minecraft_version }} ${{ steps.create_release.outputs.url }}"
+          MESSAGE="# ${{ steps.get_version.outputs.mod_version }}"$'\n'"\
+          $CHANGELOG
+          ## Version: ${{ steps.get_version.outputs.minecraft_version }}"$'\n'"\
+          <:modrinth:1373792332469768213> ${{ steps.get_modrinth_url.outputs.url }}"$'\n'"\
+          <:github:1373792356024979617> ${{ steps.create_release.outputs.url }}"
       
           jq -n --arg content "$MESSAGE" '{content: $content}' > payload.json
           
