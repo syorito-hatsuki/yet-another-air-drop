@@ -49,32 +49,32 @@ jobs:
       - name: Build & Publish to Modrinth
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
-        run: ./gradlew modrinth
+        run: ./gradlew build
 
-      - name: Read Modrinth URL
-        id: get_modrinth_url
-        run: |
-          URL=$(cat build/modrinth_url.txt)
-          echo "url=$URL" >> $GITHUB_OUTPUT
+#      - name: Read Modrinth URL
+#        id: get_modrinth_url
+#        run: |
+#          URL=$(cat build/modrinth_url.txt)
+#          echo "url=$URL" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
-        id: create_release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.get_version.outputs.mod_version }}
-          name: ${{ steps.get_version.outputs.mod_version }}
-          body_path: CHANGELOG.md
-          files: |
-            build/libs/*${{ steps.get_version.outputs.mod_version }}*.jar
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#      - name: Create GitHub Release
+#        id: create_release
+#        uses: softprops/action-gh-release@v2
+#        with:
+#          tag_name: ${{ steps.get_version.outputs.mod_version }}
+#          name: ${{ steps.get_version.outputs.mod_version }}
+#          body_path: CHANGELOG.md
+#          files: |
+#            build/libs/*${{ steps.get_version.outputs.mod_version }}*.jar
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notify Discord
         run: |
           CHANGELOG=$(cat CHANGELOG.md)
           MESSAGE="# ${{ steps.get_version.outputs.mod_version }}"$'\n'"$CHANGELOG"$'\n'"\
-          > ${{ steps.get_version.outputs.minecraft_version }} ${{ steps.get_modrinth_url.outputs.url }}"$'\n'"\
-          > ${{ steps.get_version.outputs.minecraft_version }} ${{ steps.create_release.outputs.url }}"
+          > <:modrinth:1373792332469768213> ${{ steps.get_version.outputs.minecraft_version }} ${{ steps.get_modrinth_url.outputs.url }}"$'\n'"\
+          > <:github:1373792356024979617> ${{ steps.get_version.outputs.minecraft_version }} ${{ steps.create_release.outputs.url }}"
       
           jq -n --arg content "$MESSAGE" '{content: $content}' > payload.json
           
