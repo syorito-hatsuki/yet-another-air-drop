@@ -70,23 +70,19 @@ jobs:
           name: "Release ${{ steps.get_version.outputs.modVersion }}"
           body_path: CHANGELOG.md
           files: |
-            build/libs/*${{ steps.get_version.outputs.version }}*.jar
+            build/libs/*${{ steps.get_version.outputs.version }}.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notify Discord
         run: |
-          VERSION="${{ steps.get_version.outputs.modVersion }}"
-          MCVERSION="${{ steps.get_version.outputs.minecraftVersion }}"
-          MODRINTH_URL="${{ steps.extract_modr.outputs.modrinth_url }}"
-          GITHUB_URL="${{ steps.create_release.outputs.url }}"
           CHANGELOG=$(cat CHANGELOG.md | sed 's/"/\\"/g')
-
-          TEXT="**# $VERSION**\n\`\`\`\n$CHANGELOG\n\`\`\`\n> $MCVERSION $MODRINTH_URL\n> $MCVERSION $GITHUB_URL"
-
-          JSON=$(jq -n --arg content "$TEXT" '{content: $content}')
-
-          curl -X POST "https://discord.com/api/channels/${{ secrets.DISCORD_CHANNEL_ID }}/messages" \
-            -H "Authorization: Bot ${{ secrets.DISCORD_BOT_TOKEN }}" \
+          curl -H "Authorization: Bot ${{ secrets.DISCORD_BOT_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d "$JSON"
+            -X POST \
+            -d @- \
+            "https://discord.com/api/v10/channels/${{ secrets.DISCORD_CHANNEL_ID }}/messages" <<EOF
+            {
+              "content": "**${{ env.MOD_VERSION }}**\n${{ env.CHANGELOG }}\n> ${{ env.MC_VERSION }} ${{ steps.extract_modr.outputs.modrinth_url }}\n> ${{ env.MC_VERSION }} ${{ steps.create_release.outputs.url }}"
+            }
+            EOF
