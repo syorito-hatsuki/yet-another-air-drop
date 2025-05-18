@@ -1,7 +1,4 @@
 * Test build using CI/CD
-* Multiline
-  * With sub dots
- 
-### And little more
-
--# new subtext test
+  1. Build for Modrinth
+  2. Build for Github Release
+  3. Discord Notification

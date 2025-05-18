@@ -1,3 +1,4 @@
+import com.modrinth.minotaur.TaskModrinthUpload
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 val javaVersion = JavaVersion.VERSION_21
@@ -58,6 +59,7 @@ modrinth {
     versionNumber.set(modVersion)
     versionType.set("release")
     uploadFile.set(tasks.remapJar)
+    additionalFiles.add(tasks.remapSourcesJar)
     gameVersions.addAll("1.21.4")
     loaders.add("fabric")
     changelog.set(rootProject.file("CHANGELOG.md").readText())
@@ -69,13 +71,13 @@ modrinth {
 
 tasks {
     named("modrinth").configure {
-        doLast {
-            val uploadTask = this@configure as com.modrinth.minotaur.TaskModrinthUpload
-            @Suppress("UnstableApiUsage")
-            val uploadInfo = uploadTask.uploadInfo ?: return@doLast
-            val url = "https://modrinth.com/mod/yet-another-air-drop/version/${uploadInfo.id}"
-            println(url)
-            rootProject.file("build/modrinth_url.txt").writeText(url)
+        @Suppress("UnstableApiUsage") doLast {
+            (this@configure as TaskModrinthUpload).uploadInfo?.let {
+                "https://modrinth.com/mod/yet-another-air-drop/version/${it.id}".apply {
+                    println(this)
+                    rootProject.file("build/modrinth_url.txt").writeText(this)
+                }
+            } ?: return@doLast
         }
     }
 

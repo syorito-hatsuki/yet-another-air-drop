@@ -19,15 +19,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Extract version from Gradle
+      - name: Extract versions from Gradle
         id: get_version
         run: |
           MOD_VERSION=$(grep -oP 'modVersion\s*=\s*\K.+' gradle.properties)
           MC_VERSION=$(grep -oP 'minecraftVersion\s*=\s*\K.+' gradle.properties)
           echo "MOD_VERSION=$MOD_VERSION" >> $GITHUB_ENV
-          echo "modVersion=$MOD_VERSION" >> $GITHUB_OUTPUT
+          echo "mod_version=$MOD_VERSION" >> $GITHUB_OUTPUT
           echo "MC_VERSION=$MC_VERSION" >> $GITHUB_ENV
-          echo "minecraftVersion=$MC_VERSION" >> $GITHUB_OUTPUT
+          echo "minecraft_version=$MC_VERSION" >> $GITHUB_OUTPUT
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -46,46 +46,38 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Debug token env
-        run: echo "Token length is ${#MODRINTH_TOKEN}"
-        env:
-          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
-
       - name: Build & Publish to Modrinth
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
         run: ./gradlew modrinth
 
       - name: Read Modrinth URL
-        id: extract_modr
+        id: get_modrinth_url
         run: |
           URL=$(cat build/modrinth_url.txt)
-          echo "modrinth_url=$URL" >> $GITHUB_OUTPUT
+          echo "url=$URL" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.get_version.outputs.modVersion }}
-          name: "Release ${{ steps.get_version.outputs.modVersion }}"
+          tag_name: ${{ steps.get_version.outputs.mod_version }}
+          name: ${{ steps.get_version.outputs.mod_version }}
           body_path: CHANGELOG.md
           files: |
-            build/libs/*${{ steps.get_version.outputs.minecraftVersion }}.jar
+            build/libs/*${{ steps.get_version.outputs.mod_version }}*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notify Discord
         run: |
-          # Read full changelog and build the full message
           CHANGELOG=$(cat CHANGELOG.md)
-          MESSAGE="# ${{ steps.get_version.outputs.modVersion }}"$'\n'"$CHANGELOG"$'\n'"\
-          > ${{ steps.get_version.outputs.minecraftVersion }} ${{ steps.extract_modr.outputs.modrinth_url }}"$'\n'"\
-          > ${{ steps.get_version.outputs.minecraftVersion }} ${{ steps.create_release.outputs.url }}"
+          MESSAGE="# ${{ steps.get_version.outputs.mod_version }}"$'\n'"$CHANGELOG"$'\n'"\
+          > ${{ steps.get_version.outputs.minecraft_version }} ${{ steps.get_modrinth_url.outputs.url }}"$'\n'"\
+          > ${{ steps.get_version.outputs.minecraft_version }} ${{ steps.create_release.outputs.url }}"
       
-          # Use jq to encode it safely
           jq -n --arg content "$MESSAGE" '{content: $content}' > payload.json
           
-          # Send to Discord
           curl -H "Authorization: Bot ${{ secrets.DISCORD_BOT_TOKEN }}" \
                -H "Content-Type: application/json" \
                -X POST \
