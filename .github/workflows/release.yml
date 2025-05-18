@@ -8,6 +8,9 @@ on:
     paths:
       - 'build.gradle.kts'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     environment: Release
