@@ -76,13 +76,13 @@ jobs:
 
       - name: Notify Discord
         run: |
-          CHANGELOG=$(cat CHANGELOG.md | sed 's/"/\\"/g')
+          CHANGELOG=$(jq -Rsa . < CHANGELOG.md)
+          MESSAGE="# ${{ steps.get_version.outputs.MOD_VERSION }}\n$(jq -r <<<"$CHANGELOG")\n> ${{ steps.get_version.outputs.MC_VERSION }} ${{ steps.extract_modr.outputs.modrinth_url }}\n> ${{ steps.get_version.outputs.MC_VERSION }} ${{ steps.create_release.outputs.url }}"
+          
+          jq -n --arg content "$MESSAGE" '{content: $content}' > payload.json
+          
           curl -H "Authorization: Bot ${{ secrets.DISCORD_BOT_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -X POST \
-            -d @- \
-            "https://discord.com/api/v10/channels/${{ secrets.DISCORD_CHANNEL_ID }}/messages" <<EOF
-            {
-              "content": "**${{ env.MOD_VERSION }}**\n${{ env.CHANGELOG }}\n> ${{ env.MC_VERSION }} ${{ steps.extract_modr.outputs.modrinth_url }}\n> ${{ env.MC_VERSION }} ${{ steps.create_release.outputs.url }}"
-            }
-            EOF
+               -H "Content-Type: application/json" \
+               -X POST \
+               -d @payload.json \
+               "https://discord.com/api/v10/channels/${{ secrets.DISCORD_CHANNEL_ID }}/messages"
