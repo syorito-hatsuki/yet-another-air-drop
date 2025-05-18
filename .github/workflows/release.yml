@@ -2,7 +2,7 @@ name: Release Mod
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
     paths:
       - 'build.gradle.kts'
 
