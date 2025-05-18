@@ -70,7 +70,7 @@ jobs:
           name: "Release ${{ steps.get_version.outputs.modVersion }}"
           body_path: CHANGELOG.md
           files: |
-            build/libs/*${{ steps.get_version.outputs.version }}.jar
+            build/libs/*${{ steps.get_version.outputs.minecraftVersion }}.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -79,7 +79,8 @@ jobs:
           # Read full changelog and build the full message
           CHANGELOG=$(cat CHANGELOG.md)
           MESSAGE="# ${{ steps.get_version.outputs.modVersion }}"$'\n'"$CHANGELOG"$'\n'"\
-          > ${{ steps.get_version.outputs.version }} ${{ steps.extract_modr.outputs.modrinth_url }}"
+          > ${{ steps.get_version.outputs.minecraftVersion }} ${{ steps.extract_modr.outputs.modrinth_url }}"$'\n'"\
+          > ${{ steps.get_version.outputs.minecraftVersion }} ${{ steps.create_release.outputs.url }}"
       
           # Use jq to encode it safely
           jq -n --arg content "$MESSAGE" '{content: $content}' > payload.json
