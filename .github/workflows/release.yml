@@ -1,27 +1,32 @@
 name: Release Mod
 
 on:
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: true
+  push:
+    branches: [ main ]
+    paths:
+      - 'build.gradle.kts'
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Java 21
+      - name: Extract version from Gradle
+        id: get_version
+        run: |
+          MOD_VERSION=$(grep -oP 'modVersion\s*=\s*\K.+' gradle.properties)
+          MC_VERSION=$(grep -oP 'minecraftVersion\s*=\s*\K.+' gradle.properties)
+          echo "MOD_VERSION=$MOD_VERSION" >> $GITHUB_ENV
+          echo "modVersion=$MOD_VERSION" >> $GITHUB_OUTPUT
+          echo "MC_VERSION=$MC_VERSION" >> $GITHUB_ENV
+          echo "minecraftVersion=$MC_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: 21
 
       - name: Cache Gradle dependencies
@@ -31,74 +36,46 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*','**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
 
-      - name: Extract version from Gradle
-        id: get_version
-        run: |
-          VERSION=$(grep -oP 'modVersion\s*=\s*\K[^"]+' gradle.properties)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Set up Gradle
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Build JAR
-        run: ./gradlew clean build
+      - name: Build & Publish to Modrinth
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+        run: ./gradlew modrinth
 
-      - name: Publish to Modrinth & CurseForge
-        uses: Kir-Antipov/mc-publish@v3.3
+      - name: Read Modrinth URL
+        id: extract_modr
+        run: |
+          URL=$(cat build/modrinth_url.txt)
+          echo "modrinth_url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
         with:
-          # Modrinth
-          modrinth-id: "yet-another-air-drop"
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-
-          # CurseForge
-#          curseforge-id: "1267814"
-#          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-
-          # GitHub
-          github-tag: ${{ steps.get_version.outputs.version }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-          # Files to upload (exclude dev/sources/javadoc)
+          tag_name: ${{ steps.get_version.outputs.modVersion }}
+          name: "Release ${{ steps.get_version.outputs.modVersion }}"
+          body_path: CHANGELOG.md
           files: |
             build/libs/*${{ steps.get_version.outputs.version }}*.jar
-
-          name: "Yet Another Air Drop ${{ steps.get_version.outputs.version }}"
-          version: ${{ steps.get_version.outputs.version }}
-          version-type: release
-          changelog-file: CHANGELOG*
-
-          loaders: |
-            fabric
-            
-          game-versions: |
-            1.21.4
-
-          dependencies: |
-            fabric@0.118.5+1.21.4(required){modrinth:IXeiAH6H}{curseforge:6284237}#(ignore:github)
-            fabric-kotlin-language@1.11.0+kotlin.2.0.0(required){modrinth:afsFajDC}{curseforge:5361341}#(ignore:github)
-            modmenu-badges-lib@2023.6.1(embedded){modrinth:n5smDDrP}{curseforge:4758382}#(ignore:github)
-            ducky-updater-lib@2024.10.2(embedded){modrinth:WCwN1ld7}{curseforge:5856269}#(ignore:github)
-
-          java: |
-            21
-
-          retry-attempts: 2
-          retry-delay: 10000
-          fail-mode: fail
-
-      - name: Trigger post‑release bot
         env:
-          WEBHOOK_URL: ${{ secrets.BOT_WEBHOOK }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify Discord
         run: |
-          curl -X POST "$WEBHOOK_URL" \
+          VERSION="${{ steps.get_version.outputs.modVersion }}"
+          MCVERSION="${{ steps.get_version.outputs.minecraftVersion }}"
+          MODRINTH_URL="${{ steps.extract_modr.outputs.modrinth_url }}"
+          GITHUB_URL="${{ steps.create_release.outputs.url }}"
+          CHANGELOG=$(cat CHANGELOG.md | sed 's/"/\\"/g')
+
+          TEXT="**# $VERSION**\n\`\`\`\n$CHANGELOG\n\`\`\`\n> $MCVERSION $MODRINTH_URL\n> $MCVERSION $GITHUB_URL"
+
+          JSON=$(jq -n --arg content "$TEXT" '{content: $content}')
+
+          curl -X POST "https://discord.com/api/channels/${{ secrets.DISCORD_CHANNEL_ID }}/messages" \
+            -H "Authorization: Bot ${{ secrets.DISCORD_BOT_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{
-              "action": "released",
-              "version": "${{ steps.get_version.outputs.version }}",
-              "tag":  "${{ github.event.release.tag_name }}",
-              "url":  "${{ github.event.release.html_url }}"
-            }'
+            -d "$JSON"
